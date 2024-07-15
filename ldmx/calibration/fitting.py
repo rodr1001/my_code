@@ -5,6 +5,9 @@ from tqdm import tqdm
 ROOT.gROOT.SetBatch(1)
 f = ROOT.TFile('hist-no-filtering.root')
 d = f.Get('MAC2')
+fl = ROOT.TF1('seedparamslandau','landau')
+fl.SetParameters(1,0.1,0.1)
+fl.SetParLimits(1,0,5)
 max_uv = 24
 max_layer = 34
 
@@ -29,16 +32,16 @@ with open ('cellstats.csv', 'w') as file, tqdm(total=max_uv*max_uv*max_layer) as
                     t.update()
                     continue
                 # h is a valid histogram with at least 10 entries 
-                fr = h.Fit('landau','SQN').Get()
+                fr = h.Fit(fl ,'BSQNM').Get()
                 # stats = [l,u,v]
                 for i in range(fr.NPar()):
                     stats.extend((fr.Parameter(i),fr.ParError(i)))
                 stats.extend((fr.Chi2(),fr.Prob(),fr.Ndf()))
                 writer.writerow(stats)
-                if l==20 and u==16 and v==17:
-                    fr.Print()
-                    print(stats)
-                    input()
+                #if l==20 and u==16 and v==17:
+                    #fr.Print()
+                    #rint(stats)
+                    #input()
                 t.update()
 
 ### i believe this is the code - working on something rn
