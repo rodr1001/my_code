@@ -35,6 +35,7 @@ def from_file(source_file):
     return instance
 
 p = ldmxcfg.Process('ana')
+import LDMX.Ecal.EcalGeometry
 p.sequence = [ from_file('MAC2.cxx') ]
 import sys
 p.inputFiles = sys.argv[1:]
