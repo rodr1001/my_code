@@ -68,7 +68,8 @@ void MAC2::analyze(const framework::Event& event) {
         file << layer <<",";
         file << u <<","; file << v <<",";
         file << x <<",";file << y <<",";file << z << endl;
-      }
+      
+}
     }
     file.close();
   }
