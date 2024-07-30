@@ -8,8 +8,16 @@ using namespace std;
 #include "DetDescr/EcalID.h"
 #include "DetDescr/EcalGeometry.h"
 #include <fstream>
+#include <cmath>
 
+// Input The BeamSpot Position
+int beam_x = 0;
+int beam_y = 0;
 
+//cell thickness in millimetes
+double thickness = 0.3 ;
+
+//
 class MAC2 : public framework::Analyzer {
  public:
   MAC2(const std::string& name, framework::Process& p)
@@ -19,6 +27,7 @@ class MAC2 : public framework::Analyzer {
   void analyze(const framework::Event& event) final;
 };
 
+// function for the cell suffix
 std::string histname_cell_suffix(ldmx::EcalID id) {
   auto [u, v] = id.getCellUV();
   return (
@@ -26,8 +35,6 @@ std::string histname_cell_suffix(ldmx::EcalID id) {
   );
 }
 
-//void EcalRecProducer::produce(framework::Event& event) {
-  // Get the Ecaldition<ldmx::EcalGeometry>           ldmx::EcalGeometry::CONDITIONS_OBJECT_NAME);
 void MAC2::onProcessStart() {
   getHistoDirectory();
     // this is where we will define the histograms we want to fill
@@ -36,7 +43,8 @@ void MAC2::onProcessStart() {
             ldmx::EcalID id{layer, 0, cell};
             auto [u, v] = id.getCellUV();
         histograms_.create("cell_amplitude"+histname_cell_suffix(id),
-        "Hit Amplitude / MeV", 100, 0.0, 3.0
+        "Hit Amplitude per Path Length (MeV/mm)", 100, 0.0, 3.0
+ 
         );
         histograms_.get("cell_amplitude"+histname_cell_suffix(id))->SetTitle(
             (
@@ -73,17 +81,37 @@ void MAC2::analyze(const framework::Event& event) {
     }
     file.close();
   }
+
+// a lil function to calculate the path length //input the x,y and z coordinates //can i create a function that will take the id?
+  //double path_length(ldmx::EcalID id) {
+     //const auto& geometry{getCondition<ldmx::EcalGeometry>(ldmx::EcalGeometry::CONDITIONS_OBJECT_NAME)};
+     //auto [x, y, z] = geometry.getPosition(id);
+     //double mag = pow((x-beam_x),2) + pow((y-beam_y),2) + pow(z,2);
+     //auto distance = sqrt(mag);
+     //auto cos= z/distance;
+     //auto length = thickness/cos
+     //return length;
+                                       }
+
   const auto& ecal_rec_hits{event.getCollection<ldmx::EcalHit>("EcalRecHits")};
   // std::vector<ldmx::EcalHit>
   for (const auto& hit : ecal_rec_hits) {
      // convert MeV of hit energy to GeV for histogram
      ldmx::EcalID id{static_cast<unsigned int>(hit.getID())};
      if (id.module() == 0) {
-       // only hits in core module 
-       histograms_.fill("cell_amplitude"+histname_cell_suffix(id), hit.getAmplitude());
+       // only hits in core module
+       //const auto& geometry{getCondition<ldmx::EcalGeometry>(ldmx::EcalGeometry::CONDITIONS_OBJECT_NAME)};
+       //auto [x, y, z] = geometry.getPosition(id);
+       //double mag = pow((x-beam_x),2) + pow((y-beam_y),2) + pow(z,2);
+       //auto distance = sqrt(mag);
+       //auto cos = z/distance;
+       //auto length = thickness/cos;
+       auto epl = hit.getAmplitude; // energy per unit length
+       histograms_.fill("cell_amplitude"+histname_cell_suffix(id), epl);
      }
      // std::cout << [u,v];
   }
 }
-DECLARE_ANALYZER(MAC2);
+ 
 
+DECLARE_ANALYZER(MAC2);
