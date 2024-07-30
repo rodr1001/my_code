@@ -59,8 +59,7 @@ void MAC2::onProcessStart() {
             ldmx::EcalID id{layer, 0, cell};
             auto [u, v] = id.getCellUV();
         histograms_.create("cell_amplitude"+histname_cell_suffix(id),
-        "Hit Amplitude per Path Length (MeV/mm)", 100, 0.0, 3.0
- 
+        "Hit Amplitude / MeV", 100, 0.0, 3.0
         );
         histograms_.get("cell_amplitude"+histname_cell_suffix(id))->SetTitle(
             (
@@ -111,6 +110,5 @@ void MAC2::analyze(const framework::Event& event) {
      // std::cout << [u,v];
   }
 }
- 
-
 DECLARE_ANALYZER(MAC2);
+
