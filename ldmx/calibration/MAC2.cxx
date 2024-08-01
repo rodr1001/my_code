@@ -36,15 +36,12 @@ std::string histname_cell_suffix(ldmx::EcalID id) {
 }
 
 // a lil function to calculate the path length //input the x,y and z coordinates //can i create a function that will take the id?
-double path_length(id) {
-    const auto& geometry{getCondition<ldmx::EcalGeometry>(ldmx::EcalGeometry::CONDITIONS_OBJECT_NAME)};
+double path_length(const ldmx::EcalGeometry&geometry, ldmx::EcalID id) {
     auto [x, y, z] = geometry.getPosition(id);
 
     double mag = pow((x-beam_x),2) + pow((y-beam_y),2) + pow(z,2);    
     auto distance = sqrt(mag);
     auto cos= z/distance;
-    //cout << "distance " << distance << "\n";
-    //cout << "The cosine is " <<cos << "\n";
     auto length = thickness/cos;
     return length;
   }
@@ -59,7 +56,7 @@ void MAC2::onProcessStart() {
             ldmx::EcalID id{layer, 0, cell};
             auto [u, v] = id.getCellUV();
         histograms_.create("cell_amplitude"+histname_cell_suffix(id),
-        "Hit Amplitude / MeV", 100, 0.0, 3.0
+        "Hit Amplitude per Path Length / (MeV/mm)", 100, 0.0, 3.0
         );
         histograms_.get("cell_amplitude"+histname_cell_suffix(id))->SetTitle(
             (
@@ -103,9 +100,9 @@ void MAC2::analyze(const framework::Event& event) {
      ldmx::EcalID id{static_cast<unsigned int>(hit.getID())};
      if (id.module() == 0) {
        // only hits in core module
-       // then const auto& geometry{getCondition<ldmx::EcalGeometry>(ldmx::EcalGeometry::CONDITIONS_OBJECT_NAME)}; ???
-       epl = hit.getamplitude()/path_length(id) // energy per unit length
-       histograms_.fill("cell_amplitude"+histname_cell_suffix(id), epl);
+        const auto& geometry{getCondition<ldmx::EcalGeometry>(ldmx::EcalGeometry::CONDITIONS_OBJECT_NAME)};       
+        auto epl = hit.getAmplitude()/path_length(geometry,id); // energy per unit length
+     histograms_.fill("cell_amplitude"+histname_cell_suffix(id), epl);
      }
      // std::cout << [u,v];
   }
