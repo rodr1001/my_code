@@ -17,6 +17,9 @@ int beam_y = 0;
 //cell thickness in millimeters (0.3 mm), gonna leave this as just 1, these numbers are arbitrary.
 double thickness = 1 ;
 
+//nominal mip value 
+double mip_val = 0.13
+
 //
 class MAC2 : public framework::Analyzer {
  public:
@@ -46,8 +49,9 @@ double path_length(const ldmx::EcalGeometry&geometry, ldmx::EcalID id) {
     return length;
   }
 
+// path itself, a function that returns the cell id in the next layer, of hit with a given angle of entry
 
-
+//need to decide different histograms
 void MAC2::onProcessStart() {
   getHistoDirectory();
     // this is where we will define the histograms we want to fill
@@ -100,9 +104,12 @@ void MAC2::analyze(const framework::Event& event) {
      ldmx::EcalID id{static_cast<unsigned int>(hit.getID())};
      if (id.module() == 0) {
        // only hits in core module
-        // get Nearest and Next Nearest cells id
-        // make a list of these?
-        // for i in list ? do i want epl or just energy?        
+        // start with id.layer()== 0 
+        // if epl > (0.5*mip)
+            // get Nearest and Next Nearest cells id (list)
+             // for i in list, get epls, j =1 
+             // if epl > 0.5, j =+ 1
+             // if j < 2         
  const auto& geometry{getCondition<ldmx::EcalGeometry>(ldmx::EcalGeometry::CONDITIONS_OBJECT_NAME)};       
         auto epl = hit.getAmplitude()/path_length(geometry,id); // energy per unit length
         // if any fail this, end loop. 
