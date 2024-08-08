@@ -1,10 +1,16 @@
+###scipy code now with laundau 
+###  originally ran in a jupyter lab
+
 import uproot
 import numpy as np
 import scipy
 import matplotlib.pyplot as plt
 
-def scaled_moyal(amplitude, constant, mpv, width):
-    return constant*scipy.stats.moyal.pdf(amplitude, loc=mpv, scale=width)
+# landau is provided by https://github.com/SengerM/landaupy
+from landaupy import landau
+
+def scaled_landau(amplitude, constant, mpv, width):
+    return constant*landau.pdf(amplitude, x_mpv=mpv, xi=width)
 
 def fit(histogram, drop_zero_bins = True):
     x = histogram.axis().centers()
@@ -17,7 +23,7 @@ def fit(histogram, drop_zero_bins = True):
         y = y[y > 0]
 
     return scipy.optimize.curve_fit(
-        scaled_moyal,
+        scaled_landau,
         xdata = x,
         ydata = y,
         sigma = yerr,
@@ -29,16 +35,22 @@ def fit_and_plot(histogram, fit_kw = {}, plt_range = None, **plot_kw):
     opt, cov = fit(histogram, **fit_kw)
     if plt_range is None:
         plt_range = histogram.axis().centers()
-    plt.plot(plt_range, scaled_moyal(plt_range, *opt), **plot_kw)
-
-
+    mplhep.histplot(histogram, label='Histogram')
+    plt.plot(plt_range, scaled_landau(plt_range, *opt), label='Fit', **plot_kw)
+    plt.legend()
+    return opt, cov
 
 f = uproot.open('hist-no-filtering.root')
-h = f['MAC2/MAC2_cell_amplitude_l20_m0_u16_v17']
 
-mplhep.histplot(h, label='Histogram')
-fit_and_plot(h, plt_range = np.linspace(0.0,3.0,200), label='Fit')
-plt.legend()
+opt, cov = fit_and_plot(
+    f['MAC2/MAC2_cell_amplitude_l0_m0_u16_v12'],
+    plt_range=np.linspace(0,3,200)
+)
+plt.axvline(0.26, color='gray')
 plt.show()
 
-###some scipy code, still to work up the csv and see then 
+print('[Constant x_MPV Sigma]')
+print(opt)
+print(np.sqrt(np.diag(cov)))
+
+
