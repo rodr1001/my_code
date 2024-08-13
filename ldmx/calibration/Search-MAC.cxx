@@ -11,29 +11,28 @@ using namespace std;
 
 #include "DetDescr/EcalGeometry.h"
 #include "DetDescr/EcalID.h"
-
-// Input The BeamSpot Position
-int beam_x = 0;
-int beam_y = 0;
+class CalibGeom;
 
 // cell thickness in millimeters (0.3 mm), gonna leave this as just 1, these
 // numbers are arbitrary.
-double thickness = 1;
-
-// nominal mip value
-double mip_val = 0.13
-    // nominal threshold
-    double thresh = mip_val / 2
-
-                    //
-                    class MAC2 : public framework::Analyzer {
- public:
+//
+class MAC2 : public framework::Analyzer {
+public:
   MAC2(const std::string& name, framework::Process& p)
-      : framework::Analyzer(name, p) {}
+    : framework::Analyzer(name, p) {}
   ~MAC2() = default;
+  void configure(framework::config::Parameters& ps) final;
   void onProcessStart() final;
   void analyze(const framework::Event& event) final;
+private:
+  double seed_thresh_;
+  std::vector<ldmx::EcalID> find_seeds(const std::map<ldmx::EcalID,const ldmx::EcalHit&>& hit_by_id, const CalibGeom& cg);  
 };
+
+void MAC2::configure(framework::config::Parameters& ps) {
+  // default seed threshold at half a nominal MIP
+  seed_thresh_ = ps.getParameter<double>("seed_thresh",0.13/2);
+}
 
 // function for the cell suffix
 std::string histname_cell_suffix(ldmx::EcalID id) {
@@ -43,26 +42,46 @@ std::string histname_cell_suffix(ldmx::EcalID id) {
           std::to_string(v));
 }
 
-// a lil function to calculate the path length //input the x,y and z coordinates, can i create a function that will take the id?
-double path_length(const ldmx::EcalGeometry& geometry, ldmx::EcalID id) {
-  auto [x, y, z] = geometry.getPosition(id);
 
-  double mag = pow((x - beam_x), 2) + pow((y - beam_y), 2) + pow(z, 2);
-  auto distance = sqrt(mag);
-  auto cos = z / distance;
-  auto length = thickness / cos;
-  return length;
-}
+class CalibGeom {
+public:
+  CalibGeom(const ldmx::EcalGeometry& geometry, double beam_x, double beam_y, double beam_z) : geometry_{geometry}, beamx_{beam_x}, beamy_{beam_y}, beamz_{beam_z} {
+  }
 
-// path itself, a function that returns the cell id in the next layer, of hit with a given angle of entry
+  // a lil function to calculate the path length //input the x,y and z
+  // coordinates, can i create a function that will take the id?
+  double path_length(ldmx::EcalID id) const {
+    auto [x, y, z] = geometry_.getPosition(id);
+    double mag = pow((x - beamx_), 2) + pow((y - beamy_), 2) + pow(z - beamz_, 2);
+    auto distance = sqrt(mag);
+    auto cosangle = (z - beamz_) / distance;
+    auto length = thickness_ / cosangle;
+    return length;
+  }
 
-// we need an epl function - given cell id, get amplitude and divide by path length and return epl value something like this
-auto epl (const ldmx::EcalGeometry& geometry, ldmx::EcalID id){ 
-    ldmx::EcalID id    
-epl = hit.getAmplitude()/path_length(geometry,id);
-    return epl
+  double normalized_ampl(const ldmx::EcalHit& hit) const {
+    return hit.getAmplitude() / path_length(hit.getID());
+  }
 
-// need to decide different histograms
+  const ldmx::EcalGeometry& ecg() const { return geometry_; }
+
+  std::tuple<double,double> project_to_layer(const ldmx::EcalID& thru, int ilayer) const {
+    double zf = geometry_.getZPosition(ilayer);
+    auto [x, y, z] = geometry_.getPosition(thru);
+    double xf=(x-beamx_)*(zf-beamz_)/(z-beamz_)+beamx_;
+    double yf=(y-beamy_)*(zf-beamz_)/(z-beamz_)+beamy_;
+    return std::tuple<double,double>(xf,yf);
+  }
+
+private:
+  static constexpr double thickness_ = 1.0;
+  
+  const ldmx::EcalGeometry& geometry_;
+  double beamx_, beamy_, beamz_;
+};
+
+
+
 void MAC2::onProcessStart() {
   getHistoDirectory();
   // this is where we will define the histograms we want to fill
@@ -71,85 +90,112 @@ void MAC2::onProcessStart() {
       ldmx::EcalID id{layer, 0, cell};
       auto [u, v] = id.getCellUV();
       histograms_.create("cell_amplitude" + histname_cell_suffix(id),
-                         "Hit Amplitude per Path Length / (MeV/mm)", 100, 0.0,
-                         3.0);
+			 "Hit Amplitude per Path Length / (MeV/mm)", 100, 0.0,
+			 3.0);
       histograms_.get("cell_amplitude" + histname_cell_suffix(id))
-          ->SetTitle(("Hit Amplitude in Central Module, Layer " +
-                      std::to_string(layer) + " Cell " + std::to_string(cell) +
-                      " (" + std::to_string(u) + "," + std::to_string(v) + ")")
-                         .c_str());
-    }
-  }
-}
-
-void MAC2::analyze(const framework::Event& event) {
-  static bool first_event{true};
-  if (first_event) {
-    first_event = false;
-    const auto& geometry{getCondition<ldmx::EcalGeometry>(
-        ldmx::EcalGeometry::CONDITIONS_OBJECT_NAME)};
-
-    std::ofstream file("lookuptable.csv");
-    cout << "writing lookuptable" << endl;
-    file << "CellID,Layer,U,V,X,Y,Z" << endl;
-    for (unsigned int layer{0}; layer < 34; layer++) {
-      for (unsigned int cell{0}; cell < 432; cell++) {
-        ldmx::EcalID id{layer, 0, cell};
-        auto [u, v] = id.getCellUV();
-        auto [x, y, z] =
-            geometry.getPosition(id);  // this should get the position?
-        // write id, layer, u, v, x, y, z
-        file << id << ",";
-        file << layer << ",";
-        file << u << ",";
-        file << v << ",";
-        file << x << ",";
-        file << y << ",";
-        file << z << endl;
+	  ->SetTitle(("Hit Amplitude in Central Module, Layer " +
+		      std::to_string(layer) + " Cell " +
+		      std::to_string(cell) + " (" + std::to_string(u) + "," +
+		      std::to_string(v) + ")")
+		     .c_str());
       }
     }
-    file.close();
   }
-  const auto& ecal_rec_hits{event.getCollection<ldmx::EcalHit>("EcalRecHits")};
-  std::vector<auto> seed_list = {};  // this should make an empty list
-                                     //  std::vector<ldmx::EcalHit>
-  for (const auto& hit : ecal_rec_hits) {
-    // convert MeV of hit energy to GeV for histogram
-    ldmx::EcalID id{static_cast<unsigned int>(hit.getID())};
-    if (id.module() == 0) {
-      // only hits in core module
-      if (id.layer() == 0) {
-        const auto& geometry{getCondition<ldmx::EcalGeometry>(
-            ldmx::EcalGeometry::CONDITIONS_OBJECT_NAME)};
-        auto probseed_epl =
-            hit.getAmplitude() /
-            path_length(geometry, id);  // this should be made into a function
-        if (probseed_epl > thresh) {
-          auto NList = std::vector<EcalID> getNN(EcalID id);
-          auto NNearList = std::vector<EcalID> getNNN(EcalID id);
-          NList.insert(NList.end(), NNearList.begin(), NNearList.end());
-          auto count = 1;
-          for (const auto& cellid : NList) { // can i get the hit from the cell id, i can get the cell id from the hit
-            // retrieve epl, given cell id - call it near_epl
-            if (near_epl > probseed_epl) {
-              return 0;
-            } else {
-              if (near_epl > thresh) {
-                count = count + 1;
-                if (count > 2) {
-                  return 0;
-                }
-              }
+
+  std::vector<ldmx::EcalID> MAC2::find_seeds(const std::map<ldmx::EcalID,const ldmx::EcalHit&>& hit_by_id, const CalibGeom& geometry) {
+
+    std::vector<ldmx::EcalID> seed_list = {};
+
+    for (const auto& [id, hit] : hit_by_id) {
+      // convert MeV of hit energy to GeV for histogram
+      if (id.module() == 0) {
+        // only hits in core module
+        if (id.layer() == 0) {
+          double norm_seed=geometry.normalized_ampl(hit);
+          if (norm_seed > seed_thresh_) { // consider only hits above the seeding threshold
+            // search cells in NN and NNN around the possible seed for other hits above ??? threshold
+            auto NList = geometry.ecg().getNN(id);
+            auto NNearList = geometry.ecg().getNNN(id);
+            NList.insert(NList.end(), NNearList.begin(), NNearList.end());
+            int count = 1;
+            for (const auto& cellid : NList) {
+              auto ihit=hit_by_id.find(cellid);
+	      if (ihit==hit_by_id.end()) continue;
+	      double norm_near = geometry.normalized_ampl(ihit->second);
+	      if (norm_near > norm_seed) {
+		count = count + 1000; // Spoil this as a seed
+		break;
+	      } else {
+		if (norm_near > seed_thresh_) {  
+		  count = count + 1;
+		}
+	      }              
+            }                  // close the for loop through neighbours
+            if (count<3) { // continue to the next stage, otherwise this is NOT a seed
+	      // now we search down the path
+	      std::cout << "Possible seed: " << id << std::endl;
+	      for (int ilayer=1; ilayer<5; ilayer++) {
+		auto [xl,yl] = geometry.project_to_layer(id,ilayer);
+		ldmx::EcalID idl=geometry.ecg().getID(xl,yl,ilayer);
+		std::cout << "Search around " << idl << std::endl;
+	      }
+              // ok, we admit this is a seed....
+              seed_list.push_back(id);
             }
-          }                  // close the for loop through neighbours
-          if (count <= 2) {  // prob seed condition
-            seed_list.pushback(id);
-          }  // added the seed cell id to list, should also write csv file of
-             // u,v, angle
-        }  // closes the if statement for epl greater than thresh
-           // histograms_.fill("cell_amplitude"+histname_cell_suffix(id), epl);
+	  } // end of check for seed threshold
+	} // end of requirement for layer 0
+      } // end of requirement for module 0
+    }// end of loop over hits
+    return seed_list;
+  } // end of seed finding
+
+
+
+  void MAC2::analyze(const framework::Event& event) {
+    static bool first_event{true};
+    const auto& geometry{getCondition<ldmx::EcalGeometry>(
+							  ldmx::EcalGeometry::CONDITIONS_OBJECT_NAME)};
+    if (first_event) {
+      first_event = false;
+
+      std::ofstream file("lookuptable.csv");
+      cout << "writing lookuptable" << endl;
+      file << "CellID,Layer,U,V,X,Y,Z" << endl;
+      for (unsigned int layer{0}; layer < 34; layer++) {
+        for (unsigned int cell{0}; cell < 432; cell++) {
+          ldmx::EcalID id{layer, 0, cell};
+          auto [u, v] = id.getCellUV();
+          auto [x, y, z] =
+	    geometry.getPosition(id);  // this should get the position?
+          // write id, layer, u, v, x, y, z
+          file << id << ",";
+          file << layer << ",";
+          file << u << ",";
+          file << v << ",";
+          file << x << ",";
+          file << y << ",";
+          file << z << endl;
+        }
       }
+      file.close();
     }
-  }  // closes the for loop that runs through every hit
-}  // end of void analyse
-DECLARE_ANALYZER(MAC2);
+    const auto& ecal_rec_hits{
+      event.getCollection<ldmx::EcalHit>("EcalRecHits")};
+
+    // sort the hits by their ID
+    std::map<ldmx::EcalID, const ldmx::EcalHit&> hit_by_id;
+    for (const auto& hit : ecal_rec_hits) {
+      // could implement check on if hit is isolated here
+      // then the only hits within the map are hits that happended in the event AND are isolated
+      hit_by_id.insert( std::pair<ldmx::EcalID,const ldmx::EcalHit&>(hit.getID(),hit));
+    }
+
+    double beamx=0; // assume for now
+    double beamy=0; // assume for now
+    double beamz=0; // assume for now
+    CalibGeom cg(geometry,beamx,beamy,beamz);
+    std::cout << "New Event" << std::endl;
+    std::vector<ldmx::EcalID> seed_ids=find_seeds(hit_by_id,cg);
+
+  }    // end of void analyse
+  DECLARE_ANALYZER(MAC2);
