@@ -111,89 +111,77 @@ std::vector<ldmx::EcalID> MAC2::find_seeds(
 
   for (const auto& [id, hit] : hit_by_id) {
     // convert MeV of hit energy to GeV for histogram
-    if (id.module() == 0) {
-      // only hits in core module
-      if (id.layer() == 0) {
-        double norm_seed = geometry.normalized_ampl(hit);
-        // std::cout <<"   " << id <<  "Normalized Amplitude of hit " <<
-        // norm_seed << std::endl;
-        if (norm_seed >
-            seed_thresh_) {  // consider only hits above the seeding threshold
-          // search cells in NN and NNN around the possible seed for other hits
-          // above ??? threshold
-          auto NList = geometry.ecg().getNN(id);
-          auto NNearList = geometry.ecg().getNNN(id);
-          NList.insert(NList.end(), NNearList.begin(), NNearList.end());
-          int count = 1;
-          for (const auto& cellid : NList) {
-            auto ihit = hit_by_id.find(cellid);
-            if (ihit == hit_by_id.end()) continue;
-            double norm_near = geometry.normalized_ampl(ihit->second);
-            if (norm_near > norm_seed) {
-              count = count + 1000;  // Spoil this as a seed
-              // std::cout << "      Neighbor has bigger ampl " << norm_near <<
-              // std::endl;
-              break;
-            } else {
-              if (norm_near > seed_thresh_) {
-                count = count + 1;
-                // std::cout << "        Neighbor has amplitude greater than
-                // seed threshold " << norm_near << endl;
-              }
-            }
-          }  // close the for loop through neighbours
-          // if (count ==1){
-          // std::cout << "      No Neighbours have amplitude above threshold"
-          // << endl;}
-          if (count <
-              3) {  // continue to the next stage, otherwise this is NOT a seed
-            // now we search down the path
-            std::cout << "   Accepted as Possible seed " << std::endl;
-            // std::cout << "Normalized Amplitude " << norm_seed << " is bigger
-            // than " << seed_thresh_<<std::endl;
-            for (int ilayer = 1; ilayer < 5; ilayer++) {
-              auto [xl, yl] = geometry.project_to_layer(id, ilayer);
-              ldmx::EcalID idl =
-                  geometry.ecg().getID(xl, yl, ilayer);  // ID in next layer
-              // we're gonna do what we did before, there should be a better way
-              // to code this?
-              auto ilNList = geometry.ecg().getNN(idl);
-              auto ilNNearList = geometry.ecg().getNNN(idl);
-              ilNList.insert(ilNList.end(), ilNNearList.begin(),
-                             ilNNearList.end());
-              int ilcount = 1;
-              for (const auto& cellid : ilNList) {
-                auto ihit = hit_by_id.find(cellid);
-                if (ihit == hit_by_id.end()) continue;
-                double ilnorm_near = geometry.normalized_ampl(ihit->second);
-                if (ilnorm_near > norm_seed) {
-                  ilcount = ilcount + 1000;  // Spoil this as a seed
-                  std::cout << "      Neighbor has bigger ampl " << ilnorm_near
-                            << std::endl;
-                  break;
-                } else {
-                  if (ilnorm_near > seed_thresh_) {
-                    ilcount = ilcount + 1;
-                    std::cout << "        Neighbor has amplitude greater than "
-                                 "seed threshold "
-                              << ilnorm_near << endl;
-                  }
-                }
-              }
-            }  // nested seed check
-            // if (ilcount<3) {   // ok, we admit this is a seed....
-            //  seed_list.push_back(id);
-            //}
-            // if (count > 2 & count < 999){
-            // std::cout << "   Too many Neighbours have normalized amplitudes
-            // greater than the threshold" << endl;}
-          }  // initial seed check
-        }    // end of requirement for layer 0
-      }      // end of requirement for module 0
-    }        // end of loop over hits
-    return seed_list;
-  }  // end of seed finding
-}
+    if (id.module() != 0) continue; // require core module
+    if (id.layer() !=0) continue; // require layer 0 only
+        
+    double norm_seed = geometry.normalized_ampl(hit);
+    std::cout <<"   " << id <<  "Normalized Amplitude of hit " << norm_seed << std::endl;
+    if (norm_seed < seed_thresh_) continue;  // consider only hits above the seeding threshold
+
+    // search cells in NN and NNN around the possible seed for other hits
+    // above ??? threshold
+    auto NList = geometry.ecg().getNN(id);
+    auto NNearList = geometry.ecg().getNNN(id);
+    NList.insert(NList.end(), NNearList.begin(), NNearList.end());
+    int count = 1;
+    for (const auto& cellid : NList) {
+      auto ihit = hit_by_id.find(cellid);
+      if (ihit == hit_by_id.end()) continue;
+      double norm_near = geometry.normalized_ampl(ihit->second);
+      if (norm_near > norm_seed) {
+        count = count + 1000;  // Spoil this as a seed
+        std::cout << "      Neighbor has bigger ampl " << norm_near << std::endl;
+        break;
+      } else {
+        if (norm_near > seed_thresh_) {
+          count = count + 1;
+          //std::cout << "        Neighbor has amplitude greater than seed threshold " << norm_near << endl;
+        }
+      }
+    }  // close the for loop through neighbours
+    if (count ==1) {
+      std::cout << "      No Neighbours have amplitude above threshold" << endl;
+    }
+    if (count > 2 & count < 999){
+      std::cout << "   Too many Neighbours have normalized amplitude greater than the threshold" << endl;
+    }          
+    if (count > 2) continue; // require that we have at most one other energetic hit in same layer nearby
+    // now we search down the path to eliminate cases where there is a shower
+    // considering some options for algorithm (veto if):
+    // (1) number of hits with Enorm>~0.5MIP > [2-4]
+    // (2) total energy of hits in 19 > [~3 MIP]
+    std::cout << "Accepted as Possible seed. " << std::endl;
+    for (int ilayer = 1; ilayer < 5; ilayer++) {
+      auto [xl, yl] = geometry.project_to_layer(id, ilayer);
+      ldmx::EcalID idl = geometry.ecg().getID(xl, yl, ilayer);  // ID in next layer
+      std::vector<ldmx::EcalID> ilNList = geometry.ecg().getNN(idl);
+      auto ilNNearList = geometry.ecg().getNNN(idl);
+      ilNList.insert(ilNList.end(), ilNNearList.begin(), ilNNearList.end());
+      ilNList.push_back(idl);
+      int ilcount = 0;
+      for (const auto& ncellid : ilNList) {
+        auto ilhit = hit_by_id.find(ncellid);
+        if (ilhit == hit_by_id.end()) continue;
+        double ilnorm_near = geometry.normalized_ampl(ilhit->second);
+        if (ilnorm_near > seed_thresh_) {
+          ilcount = ilcount + 1;
+        }
+      }
+              
+      if (ilcount > 3){
+        std::cout << "   Too many cells normalized amplitude greater than the threshold in layer " << ilayer << endl;
+        count=1000; // spoil the count to fail
+        break; // no need to check other layers...
+      }           
+    } // loop over layers
+    if (count<3) {   // ok, we admit this is a seed....
+      seed_list.push_back(id);
+      std::cout << "Accepted " << id << " as a seed.  Hurrah." << endl;
+    }
+  } // end of for loop over all hits        
+  return seed_list;
+}  // end of seed finding
+
   void MAC2::analyze(const framework::Event& event) {
     static bool first_event{true};
     const auto& geometry{getCondition<ldmx::EcalGeometry>(
