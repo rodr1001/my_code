@@ -27,6 +27,8 @@ class MAC2 : public framework::Analyzer {
 
  private:
   double seed_thresh_;
+  double path_veto_thresh_;
+  int path_veto_count_;
   std::vector<ldmx::EcalID> find_seeds(
       const std::map<ldmx::EcalID, const ldmx::EcalHit&>& hit_by_id,
       const CalibGeom& cg);
@@ -35,6 +37,9 @@ class MAC2 : public framework::Analyzer {
 void MAC2::configure(framework::config::Parameters& ps) {
   // default seed threshold at half a nominal MIP
   seed_thresh_ = ps.getParameter<double>("seed_thresh", 0.13 / 2);
+  path_veto_thresh_ = ps.getParameter <double>("path_veto_thresh", 0.13*2); //path veto threshold at double mip right now, not tied to this
+  path_veto_count_ = ps.getParameter <int> ("path_veto_count", 2); //set at two right now?
+  noise_thresh_ = ps.getParameter <double> ("noise_thresh", 0.05) //some lower threshold just above noise?
 }
 
 // function for the cell suffix
@@ -163,13 +168,13 @@ std::vector<ldmx::EcalID> MAC2::find_seeds(
         auto ilhit = hit_by_id.find(ncellid);
         if (ilhit == hit_by_id.end()) continue;
         double ilnorm_near = geometry.normalized_ampl(ilhit->second);
-        if (ilnorm_near > seed_thresh_) {
+        if (ilnorm_near > path_veto_thresh_) {
           ilcount = ilcount + 1;
         }
       }
               
-      if (ilcount > 3){
-        std::cout << "   Too many cells normalized amplitude greater than the threshold in layer " << ilayer << endl;
+      if (ilcount > path_veto_count_){
+        std::cout << "   Too many cells w/ normalized amplitude greater than path threshold in layer " << ilayer << endl;
         count=1000; // spoil the count to fail
         break; // no need to check other layers...
       }           
@@ -181,6 +186,36 @@ std::vector<ldmx::EcalID> MAC2::find_seeds(
   } // end of for loop over all hits        
   return seed_list;
 }  // end of seed finding
+
+std::vector<ldmx::EcalID> MAC2::seeded_cells(const std::map<ldmx::EcalID, const ldmx::EcalHit&>& hit_by_id,const CalibGeom& geometry, std::vector<ldmx::EcalID> ) {
+  std::vector<ldmx::EcalID> valid_list = {};
+  for (const auto& cellid : seed_ids){
+  valid_list.push_back(cellid);
+  for (int ilayer = 1; ilayer < 34; ilayer++) {
+    auto [xl, yl] = geometry.project_to_layer(cellid, ilayer);
+    ldmx::EcalID idl = geometry.ecg().getID(xl, yl, ilayer);  // ID in next layer
+    auto idlhit = hit_by_id.find(idl);
+    if (idlhit == hit_by_id.end()) continue; // does this tell me there is a hit at this id?
+
+    std::vector<ldmx::EcalID> ilNList = geometry.ecg().getNN(idl);
+    auto ilNNearList = geometry.ecg().getNNN(idl);
+    ilNList.insert(ilNList.end(), ilNNearList.begin(), ilNNearList.end())
+    ilNList.push_back(idl);
+    int ilcount = 0;
+    for (const auto& ncellid : ilNList) {
+      auto ilhit = hit_by_id.find(ncellid);
+      if (ilhit == hit_by_id.end()) continue;
+      double ilnorm_near = geometry.normalized_ampl(ilhit->second);
+      if (ilnorm_near > noise_thresh_) {
+        ilcount = ilcount + 1;
+      }
+    }
+    if (ilcount<3){
+      valid_list.insert(valid_list.end(),ilNList.begin(), ilNList.end())
+    }
+
+
+
 
   void MAC2::analyze(const framework::Event& event) {
     static bool first_event{true};
@@ -229,6 +264,24 @@ std::vector<ldmx::EcalID> MAC2::find_seeds(
     CalibGeom cg(geometry, beamx, beamy, beamz);
     std::cout << "New Event" << std::endl;
     std::vector<ldmx::EcalID> seed_ids = find_seeds(hit_by_id, cg);
+    
+    // now to fill histos // should make a function?
+    for (const auto& cell : seed_ids){
+      for (int ilayer = 1; ilayer <34; ilayer++) {
+        auto [xl, yl] = geometry.project_to_layer(id, ilayer);
+                    ldmx::EcalID idl = geometry.ecg().getID(xl, yl, ilayer);  // ID in next layer
+                          std::vector<ldmx::EcalID> ilNList = geometry.ecg().getNN(idl);
+                                auto ilNNearList = geometry.ecg().getNNN(idl);
+                                      ilNList.insert(ilNList.end(), ilNNearList.begin(), ilNNearList.end());
+                                            ilNList.push_back(idl);
+                                                  int ilcount = 0;
+
+     auto ihit = hit_by_id.find(cell);
+      if (ihit == hit_by_id.end()) continue;
+      double norm_ampl = geometry.normalized_ampl(ihit->second);
+      histograms.fill("cell_amplitude"+histname_cell_suffix(cell), norm_ampl)
+    }
+    //
 
   }  // end of void analyse
   DECLARE_ANALYZER(MAC2);
