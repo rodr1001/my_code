@@ -191,30 +191,42 @@ std::vector<ldmx::EcalID> MAC2::seeded_cells(const std::map<ldmx::EcalID, const 
   std::vector<ldmx::EcalID> valid_list = {};
   for (const auto& cellid : seed_ids){
   valid_list.push_back(cellid);
-  for (int ilayer = 1; ilayer < 34; ilayer++) {
-    auto [xl, yl] = geometry.project_to_layer(cellid, ilayer);
-    ldmx::EcalID idl = geometry.ecg().getID(xl, yl, ilayer);  // ID in next layer
-    auto idlhit = hit_by_id.find(idl);
-    if (idlhit == hit_by_id.end()) continue; // does this tell me there is a hit at this id?
-
-    std::vector<ldmx::EcalID> ilNList = geometry.ecg().getNN(idl);
-    auto ilNNearList = geometry.ecg().getNNN(idl);
-    ilNList.insert(ilNList.end(), ilNNearList.begin(), ilNNearList.end())
-    ilNList.push_back(idl);
-    int ilcount = 0;
-    for (const auto& ncellid : ilNList) {
-      auto ilhit = hit_by_id.find(ncellid);
-      if (ilhit == hit_by_id.end()) continue;
-      double ilnorm_near = geometry.normalized_ampl(ilhit->second);
-      if (ilnorm_near > noise_thresh_) {
-        ilcount = ilcount + 1;
+    for (int ilayer = 1; ilayer < 34; ilayer++) {
+      auto [xl, yl] = geometry.project_to_layer(cellid, ilayer);
+      try {
+        ldmx::EcalID idl = geometry.ecg().getID(xl, yl, ilayer);  // ID in next layer
+      } catch (const framework::exception::Exception& e) {
+        break;
       }
-    }
-    if (ilcount<3){
-      valid_list.insert(valid_list.end(),ilNList.begin(), ilNList.end())
-    }
-
-
+      auto idlhit = hit_by_id.find(idl);
+      if (idlhit == hit_by_id.end()) continue; // does this tell me there is a hit at this id?
+      std::vector<ldmx::EcalID> ilNList = geometry.ecg().getNN(idl);
+      auto ilNNearList = geometry.ecg().getNNN(idl);
+      ilNList.insert(ilNList.end(), ilNNearList.begin(), ilNNearList.end())
+      ilNList.push_back(idl);
+      int ilcount = 0;
+      for (const auto& ncellid : ilNList) {
+        auto ilhit = hit_by_id.find(ncellid);
+        if (ilhit == hit_by_id.end()) continue;
+        double ilnorm_near = geometry.normalized_ampl(ilhit->second);
+        if (ilnorm_near > noise_thresh_) {
+          ilcount = ilcount + 1;
+        }
+      }
+      if (ilcount<3){
+        for (const auto& ncellid : ilNList) {
+          auto [xl, yl] = geometry.project_to_layer(ncellid, ilayer+1);
+          try {
+            ldmx::EcalID indl = geometry.ecg().getID(xl, yl, ilayer);
+          } catch (const framework::exception::Exception& e){
+            break;
+            }
+          valid_list.push_back(indl);
+        }  
+      }
+    } // end of for loop over 34 layers
+  }// end of for loop over seed ids
+} //end of function
 
 
   void MAC2::analyze(const framework::Event& event) {
