@@ -29,9 +29,11 @@ class MAC2 : public framework::Analyzer {
   double seed_thresh_;
   double path_veto_thresh_;
   int path_veto_count_;
+  double noise_thresh_;
   std::vector<ldmx::EcalID> find_seeds(
       const std::map<ldmx::EcalID, const ldmx::EcalHit&>& hit_by_id,
       const CalibGeom& cg);
+  std::vector<ldmx::EcalID> valid_cells(std::vector<ldmx::EcalID>, const std::map<ldmx::EcalID, const ldmx::EcalHit&>& hit_by_id,const CalibGeom& geometry;
 };
 
 void MAC2::configure(framework::config::Parameters& ps) {
@@ -39,7 +41,7 @@ void MAC2::configure(framework::config::Parameters& ps) {
   seed_thresh_ = ps.getParameter<double>("seed_thresh", 0.13 / 2);
   path_veto_thresh_ = ps.getParameter <double>("path_veto_thresh", 0.13*2); //path veto threshold at double mip right now, not tied to this
   path_veto_count_ = ps.getParameter <int> ("path_veto_count", 2); //set at two right now?
-  noise_thresh_ = ps.getParameter <double> ("noise_thresh", 0.05) //some lower threshold just above noise?
+  noise_thresh_ = ps.getParameter <double> ("noise_thresh", 0.13/4); //some lower threshold just above noise? // quarter mip
 }
 
 // function for the cell suffix
@@ -187,10 +189,10 @@ std::vector<ldmx::EcalID> MAC2::find_seeds(
   return seed_list;
 }  // end of seed finding
 
-std::vector<ldmx::EcalID> MAC2::seeded_cells(const std::map<ldmx::EcalID, const ldmx::EcalHit&>& hit_by_id,const CalibGeom& geometry, std::vector<ldmx::EcalID> ) {
+std::vector<ldmx::EcalID> MAC2::valid_cells(std::vector<ldmx::EcalID>, const std::map<ldmx::EcalID, const ldmx::EcalHit&>& hit_by_id,const CalibGeom& geometry) {
   std::vector<ldmx::EcalID> valid_list = {};
   for (const auto& cellid : seed_ids){
-  valid_list.push_back(cellid);
+    valid_list.push_back(cellid);
     for (int ilayer = 1; ilayer < 34; ilayer++) {
       auto [xl, yl] = geometry.project_to_layer(cellid, ilayer);
       try {
@@ -198,34 +200,37 @@ std::vector<ldmx::EcalID> MAC2::seeded_cells(const std::map<ldmx::EcalID, const 
       } catch (const framework::exception::Exception& e) {
         break;
       }
-      auto idlhit = hit_by_id.find(idl);
-      if (idlhit == hit_by_id.end()) continue; // does this tell me there is a hit at this id?
-      std::vector<ldmx::EcalID> ilNList = geometry.ecg().getNN(idl);
-      auto ilNNearList = geometry.ecg().getNNN(idl);
-      ilNList.insert(ilNList.end(), ilNNearList.begin(), ilNNearList.end())
-      ilNList.push_back(idl);
-      int ilcount = 0;
+      // does this tell me there is a hit at this id?
+      std::vector<ldmx::EcalID> NList = geometry.ecg().getNN(idl);
+      auto projected_ihit = hit_by_id.find(idl);
+      if (projected_ihit == hit_by_id.end()) continue;
+      double projected_seed = geometry.normalized_ampl(projected_ihit->second);
+      double ilseed = projected_seed;
+      for (const auto& cellid :NList) {
+        auto ihit = hit_by_id.find(cellid);
+        if (ihit == hit_by_id.end()) continue;
+        double ilnorm_near = geometry.normalized_ampl(ihit->second);
+        if (ilnorm_near > ilseed) {
+          double ilseed = ilnorm_near;
+          auto ilseed_id = cellid
+        }
+        // should just get a sorting function and keep it
+      auto ilNList = geometry.ecg().getNN(ilseed_id); 
+      auto ilNNList = geometry.ecg().getNNN(ilseed_id);
+      ilNList.insert(ilNList.end(), ilNNList.begin(), ilNNList.end())
       for (const auto& ncellid : ilNList) {
         auto ilhit = hit_by_id.find(ncellid);
         if (ilhit == hit_by_id.end()) continue;
         double ilnorm_near = geometry.normalized_ampl(ilhit->second);
-        if (ilnorm_near > noise_thresh_) {
-          ilcount = ilcount + 1;
-        }
-      }
-      if (ilcount<3){
-        for (const auto& ncellid : ilNList) {
-          auto [xl, yl] = geometry.project_to_layer(ncellid, ilayer+1);
-          try {
-            ldmx::EcalID indl = geometry.ecg().getID(xl, yl, ilayer);
-          } catch (const framework::exception::Exception& e){
-            break;
-            }
-          valid_list.push_back(indl);
-        }  
-      }
+        if (ilnorm_near > noise_thresh_){
+          break;
+          }
+      }// end of loop over neighbours
+      valid_list.push_back(seed_
+      }  
     } // end of for loop over 34 layers
   }// end of for loop over seed ids
+ return valid_list;
 } //end of function
 
 
@@ -276,24 +281,14 @@ std::vector<ldmx::EcalID> MAC2::seeded_cells(const std::map<ldmx::EcalID, const 
     CalibGeom cg(geometry, beamx, beamy, beamz);
     std::cout << "New Event" << std::endl;
     std::vector<ldmx::EcalID> seed_ids = find_seeds(hit_by_id, cg);
-    
+    std::vector<ldmx::EcalID> valid_cells = valid_cells(seed_ids, hit_by_id,cg);
     // now to fill histos // should make a function?
-    for (const auto& cell : seed_ids){
-      for (int ilayer = 1; ilayer <34; ilayer++) {
-        auto [xl, yl] = geometry.project_to_layer(id, ilayer);
-                    ldmx::EcalID idl = geometry.ecg().getID(xl, yl, ilayer);  // ID in next layer
-                          std::vector<ldmx::EcalID> ilNList = geometry.ecg().getNN(idl);
-                                auto ilNNearList = geometry.ecg().getNNN(idl);
-                                      ilNList.insert(ilNList.end(), ilNNearList.begin(), ilNNearList.end());
-                                            ilNList.push_back(idl);
-                                                  int ilcount = 0;
-
-     auto ihit = hit_by_id.find(cell);
-      if (ihit == hit_by_id.end()) continue;
-      double norm_ampl = geometry.normalized_ampl(ihit->second);
-      histograms.fill("cell_amplitude"+histname_cell_suffix(cell), norm_ampl)
-    }
+    //for (const auto& cell : valid_cells){
+      //auto ihit = hit_by_id.find(cell);
+      //if (ihit == hit_by_id.end()) continue;
+      //double norm_ampl = geometry.normalized_ampl(ihit->second);
+     // histograms.fill("cell_amplitude"+histname_cell_suffix(cell), norm_ampl)}
     //
-
+  
   }  // end of void analyse
   DECLARE_ANALYZER(MAC2);
