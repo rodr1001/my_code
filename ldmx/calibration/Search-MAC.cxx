@@ -4,7 +4,7 @@
 #include "Ecal/EcalRecProducer.h"
 #include "Ecal/Event/EcalHit.h"
 #include "Framework/EventProcessor.h"
-
+#include <optional> 
 using namespace std;
 #include <cmath>
 #include <fstream>
@@ -33,7 +33,7 @@ class MAC2 : public framework::Analyzer {
   std::vector<ldmx::EcalID> find_seeds(
       const std::map<ldmx::EcalID, const ldmx::EcalHit&>& hit_by_id,
       const CalibGeom& cg);
-  std::vector<ldmx::EcalID> valid_cells(std::vector<ldmx::EcalID>, const std::map<ldmx::EcalID, const ldmx::EcalHit&>& hit_by_id,const CalibGeom& geometry);
+  std::vector<ldmx::EcalID> valid_cells(const std::map<ldmx::EcalID,const ldmx::EcalHit&>& hit_by_id,const CalibGeom& geometry,std::vector<ldmx::EcalID>);
 };
 
 void MAC2::configure(framework::config::Parameters& ps) {
@@ -57,6 +57,15 @@ class CalibGeom {
   CalibGeom(const ldmx::EcalGeometry& geometry, double beam_x, double beam_y,
             double beam_z)
       : geometry_{geometry}, beamx_{beam_x}, beamy_{beam_y}, beamz_{beam_z} {}
+
+ // std::optional<ldmx::EcalID> getIDFallible(const ldmx::EcalGeometry&g, double x, double y, double layer) {
+   // try {
+     // return g.getID(x,y,layer);
+   // } catch (const framework::exception::Exception&e) {
+     // return std::nullopt;
+   // }
+ // } // function to get ID - which can be bad 
+
 
   // a lil function to calculate the path length //input the x,y and z
   // coordinates, can i create a function that will take the id?
@@ -189,48 +198,49 @@ std::vector<ldmx::EcalID> MAC2::find_seeds(
   return seed_list;
 }  // end of seed finding
 
-std::vector<ldmx::EcalID> MAC2::valid_cells(std::vector<ldmx::EcalID> seed_ids, const std::map<ldmx::EcalID, const ldmx::EcalHit&>& hit_by_id,const CalibGeom& geometry) {
+std::vector<ldmx::EcalID> MAC2::valid_cells(const std::map<ldmx::EcalID,const ldmx::EcalHit&>& hit_by_id,const CalibGeom& geometry, std::vector<ldmx::EcalID> seed_ids) {
   std::vector<ldmx::EcalID> valid_list = {};
   for (const auto& cellid : seed_ids){
     valid_list.push_back(cellid);
     for (int ilayer = 1; ilayer < 34; ilayer++) {
       auto [xl, yl] = geometry.project_to_layer(cellid, ilayer);
+      ldmx::EcalID idl;
       try {
         ldmx::EcalID idl = geometry.ecg().getID(xl, yl, ilayer);  // ID in next layer
-      } catch (const framework::exception::Exception& e) {
-        break;
-      }
-      // does this tell me there is a hit at this id?
-      std::vector<ldmx::EcalID> NList = geometry.ecg().getNN(idl);
-      auto projected_ihit = hit_by_id.find(idl);
-      if (projected_ihit == hit_by_id.end()) continue;
-      double projected_seed = geometry.normalized_ampl(projected_ihit->second);
-      double ilseed = projected_seed;
-      ldmx::EcalID ilseed_id = idl
-      for (const auto& cellid :NList) {
+        // does this tell me there is a hit at this id?
+       } catch (const framework::exception::Exception& e) {
+         break;
+       }
+       std::vector<ldmx::EcalID> NList = geometry.ecg().getNN(idl);
+       auto projected_ihit = hit_by_id.find(idl);
+       if (projected_ihit == hit_by_id.end()) continue;
+       double projected_seed = geometry.normalized_ampl(projected_ihit->second);
+       double ilseed = projected_seed;
+       ldmx::EcalID ilseed_id = idl;
+       for (const auto& cellid :NList) {
         auto ihit = hit_by_id.find(cellid);
         if (ihit == hit_by_id.end()) continue;
         double ilnorm_near = geometry.normalized_ampl(ihit->second);
         if (ilnorm_near > ilseed) {
-          double ilseed = ilnorm_near;
-          ldmx::EcalID ilseed_id = cellid;
+         double ilseed = ilnorm_near;
+         ldmx::EcalID ilseed_id = cellid;
         }
-      }// should just get a sorting function and keep it
-      auto ilNList = geometry.ecg().getNN(ilseed_id); 
-      auto ilNNList = geometry.ecg().getNNN(ilseed_id);
-      ilNList.insert(ilNList.end(), ilNNList.begin(), ilNNList.end());
-      int count = 0 ;
-      for (const auto& ncellid : ilNList) {
+       } // should just get a sorting function and keep it
+       auto ilNList = geometry.ecg().getNN(ilseed_id); 
+       auto ilNNList = geometry.ecg().getNNN(ilseed_id);
+       ilNList.insert(ilNList.end(), ilNNList.begin(), ilNNList.end());
+       int count = 0 ;
+       for (const auto& ncellid : ilNList) {
         auto ilhit = hit_by_id.find(ncellid);
         if (ilhit == hit_by_id.end()) continue;
         double ilnorm_near = geometry.normalized_ampl(ilhit->second);
         if (ilnorm_near > noise_thresh_){
           count = 100;
-          }
-      }// end of loop over neighbours
-      if (count = 0) {
-        valid_list.push_back(ilseed_id);
-      }  
+        }
+       }// end of loop over neighbours
+       if (count = 0) {
+         valid_list.push_back(ilseed_id);
+       }  
     } // end of for loop over 34 layers
   }// end of for loop over seed ids
  return valid_list;
@@ -284,13 +294,14 @@ std::vector<ldmx::EcalID> MAC2::valid_cells(std::vector<ldmx::EcalID> seed_ids, 
     CalibGeom cg(geometry, beamx, beamy, beamz);
     std::cout << "New Event" << std::endl;
     std::vector<ldmx::EcalID> seed_ids = find_seeds(hit_by_id, cg);
-    std::vector<ldmx::EcalID> valid_cells = valid_cells(seed_ids, hit_by_id,cg);
+    std::vector<ldmx::EcalID> path_cells = valid_cells(hit_by_id,cg, seed_ids);
     // now to fill histos // should make a function?
-    //for (const auto& cell : valid_cells){
-      //auto ihit = hit_by_id.find(cell);
-      //if (ihit == hit_by_id.end()) continue;
-      //double norm_ampl = geometry.normalized_ampl(ihit->second);
-     // histograms.fill("cell_amplitude"+histname_cell_suffix(cell), norm_ampl)}
+    for (const auto& cell : path_cells){
+      auto ihit = hit_by_id.find(cell);
+      if (ihit == hit_by_id.end()) continue;
+      double norm_ampl = cg.normalized_ampl(ihit->second);
+      histograms_.fill("cell_amplitude"+histname_cell_suffix(cell), norm_ampl);
+      }
     //
   
   }  // end of void analyse
