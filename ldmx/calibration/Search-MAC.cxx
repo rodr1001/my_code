@@ -33,7 +33,7 @@ class MAC2 : public framework::Analyzer {
   std::vector<ldmx::EcalID> find_seeds(
       const std::map<ldmx::EcalID, const ldmx::EcalHit&>& hit_by_id,
       const CalibGeom& cg);
-  std::vector<ldmx::EcalID> valid_cells(std::vector<ldmx::EcalID>, const std::map<ldmx::EcalID, const ldmx::EcalHit&>& hit_by_id,const CalibGeom& geometry;
+  std::vector<ldmx::EcalID> valid_cells(std::vector<ldmx::EcalID>, const std::map<ldmx::EcalID, const ldmx::EcalHit&>& hit_by_id,const CalibGeom& geometry);
 };
 
 void MAC2::configure(framework::config::Parameters& ps) {
@@ -189,7 +189,7 @@ std::vector<ldmx::EcalID> MAC2::find_seeds(
   return seed_list;
 }  // end of seed finding
 
-std::vector<ldmx::EcalID> MAC2::valid_cells(std::vector<ldmx::EcalID>, const std::map<ldmx::EcalID, const ldmx::EcalHit&>& hit_by_id,const CalibGeom& geometry) {
+std::vector<ldmx::EcalID> MAC2::valid_cells(std::vector<ldmx::EcalID> seed_ids, const std::map<ldmx::EcalID, const ldmx::EcalHit&>& hit_by_id,const CalibGeom& geometry) {
   std::vector<ldmx::EcalID> valid_list = {};
   for (const auto& cellid : seed_ids){
     valid_list.push_back(cellid);
@@ -206,27 +206,30 @@ std::vector<ldmx::EcalID> MAC2::valid_cells(std::vector<ldmx::EcalID>, const std
       if (projected_ihit == hit_by_id.end()) continue;
       double projected_seed = geometry.normalized_ampl(projected_ihit->second);
       double ilseed = projected_seed;
+      ldmx::EcalID ilseed_id = idl
       for (const auto& cellid :NList) {
         auto ihit = hit_by_id.find(cellid);
         if (ihit == hit_by_id.end()) continue;
         double ilnorm_near = geometry.normalized_ampl(ihit->second);
         if (ilnorm_near > ilseed) {
           double ilseed = ilnorm_near;
-          auto ilseed_id = cellid
+          ldmx::EcalID ilseed_id = cellid;
         }
-        // should just get a sorting function and keep it
+      }// should just get a sorting function and keep it
       auto ilNList = geometry.ecg().getNN(ilseed_id); 
       auto ilNNList = geometry.ecg().getNNN(ilseed_id);
-      ilNList.insert(ilNList.end(), ilNNList.begin(), ilNNList.end())
+      ilNList.insert(ilNList.end(), ilNNList.begin(), ilNNList.end());
+      int count = 0 ;
       for (const auto& ncellid : ilNList) {
         auto ilhit = hit_by_id.find(ncellid);
         if (ilhit == hit_by_id.end()) continue;
         double ilnorm_near = geometry.normalized_ampl(ilhit->second);
         if (ilnorm_near > noise_thresh_){
-          break;
+          count = 100;
           }
       }// end of loop over neighbours
-      valid_list.push_back(seed_
+      if (count = 0) {
+        valid_list.push_back(ilseed_id);
       }  
     } // end of for loop over 34 layers
   }// end of for loop over seed ids
