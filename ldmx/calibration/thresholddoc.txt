@@ -1,0 +1,5 @@
+keeping track of thresholds
+
+
+Seed_thresh_  - we only want events that have a value greater than this threshold
+path_veto_thresh_ -  we do not want more than 2 neighbouring cells to have more than this value, if the amplitude of a hit in a neighbouring cell is greater than this, the 
