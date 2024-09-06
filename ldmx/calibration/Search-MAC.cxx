@@ -58,14 +58,27 @@ class CalibGeom {
             double beam_z)
       : geometry_{geometry}, beamx_{beam_x}, beamy_{beam_y}, beamz_{beam_z} {}
 
- // std::optional<ldmx::EcalID> getIDFallible(const ldmx::EcalGeometry&g, double x, double y, double layer) {
-   // try {
-     // return g.getID(x,y,layer);
-   // } catch (const framework::exception::Exception&e) {
-     // return std::nullopt;
-   // }
- // } // function to get ID - which can be bad 
-
+  /**
+   * get an ID for a location that may (or may not) correspond to a hit
+   *
+   * Example Usage
+   * ```cpp
+   * auto fid = getIDFallible(x, y, layer);
+   * if (not fid) {
+   *   // no ID corresponding to this location and layer
+   *   break;
+   * }
+   * // there is an ID for this location and layer
+   * ldmx::EcalID id = fid.value();
+   * ```
+   */
+  std::optional<ldmx::EcalID> getIDFallible(double x, double y, int layer) const {
+    try {
+      return geometry_.getID(x, y, layer);
+    } catch (const framework::exception::Exception &e) {
+      return std::nullopt;
+    }
+  }
 
   // a lil function to calculate the path length //input the x,y and z
   // coordinates, can i create a function that will take the id?
@@ -131,7 +144,7 @@ std::vector<ldmx::EcalID> MAC2::find_seeds(
     if (id.layer() !=0) continue; // require layer 0 only
         
     double norm_seed = geometry.normalized_ampl(hit);
-    std::cout <<"   " << id <<  "Normalized Amplitude of hit " << norm_seed << std::endl;
+    //std::cout <<"   " << id <<  "Normalized Amplitude of hit " << norm_seed << std::endl;
     if (norm_seed < seed_thresh_) continue;  // consider only hits above the seeding threshold
 
     // search cells in NN and NNN around the possible seed for other hits
@@ -146,7 +159,7 @@ std::vector<ldmx::EcalID> MAC2::find_seeds(
       double norm_near = geometry.normalized_ampl(ihit->second);
       if (norm_near > norm_seed) {
         count = count + 1000;  // Spoil this as a seed
-        std::cout << "      Neighbor has bigger ampl " << norm_near << std::endl;
+        //std::cout << "      Neighbor has bigger ampl " << norm_near << std::endl;
         break;
       } else {
         if (norm_near > seed_thresh_) {
@@ -154,22 +167,21 @@ std::vector<ldmx::EcalID> MAC2::find_seeds(
           //std::cout << "        Neighbor has amplitude greater than seed threshold " << norm_near << endl;
         }
       }
-    }  // close the for loop through neighbours
-    if (count ==1) {
-      std::cout << "      No Neighbours have amplitude above threshold" << endl;
-    }
-    if (count > 2 & count < 999){
-      std::cout << "   Too many Neighbours have normalized amplitude greater than the threshold" << endl;
-    }          
+    }  // close the for loop through neighbours         
     if (count > 2) continue; // require that we have at most one other energetic hit in same layer nearby
     // now we search down the path to eliminate cases where there is a shower
     // considering some options for algorithm (veto if):
     // (1) number of hits with Enorm>~0.5MIP > [2-4]
     // (2) total energy of hits in 19 > [~3 MIP]
-    std::cout << "Accepted as Possible seed. " << std::endl;
+    // std::cout << "Accepted as Possible seed. " << std::endl;
     for (int ilayer = 1; ilayer < 5; ilayer++) {
       auto [xl, yl] = geometry.project_to_layer(id, ilayer);
-      ldmx::EcalID idl = geometry.ecg().getID(xl, yl, ilayer);  // ID in next layer
+      auto fidl = geometry.getIDFallible(xl, yl, ilayer);  // ID in next layer
+      if (not fidl) {
+        // no cell corresponding to this location in this layer, what do?
+        continue;
+      }
+      ldmx::EcalID idl{fidl.value()};
       std::vector<ldmx::EcalID> ilNList = geometry.ecg().getNN(idl);
       auto ilNNearList = geometry.ecg().getNNN(idl);
       ilNList.insert(ilNList.end(), ilNNearList.begin(), ilNNearList.end());
@@ -185,14 +197,14 @@ std::vector<ldmx::EcalID> MAC2::find_seeds(
       }
               
       if (ilcount > path_veto_count_){
-        std::cout << "   Too many cells w/ normalized amplitude greater than path threshold in layer " << ilayer << endl;
+        //std::cout << "   Too many cells w/ normalized amplitude greater than path threshold in layer " << ilayer << endl;
         count=1000; // spoil the count to fail
         break; // no need to check other layers...
       }           
     } // loop over layers
     if (count<3) {   // ok, we admit this is a seed....
       seed_list.push_back(id);
-      std::cout << "Accepted " << id << " as a seed.  Hurrah." << endl;
+      //std::cout << "Accepted " << id << " as a seed.  Hurrah." << endl;
     }
   } // end of for loop over all hits        
   return seed_list;
@@ -204,13 +216,11 @@ std::vector<ldmx::EcalID> MAC2::valid_cells(const std::map<ldmx::EcalID,const ld
     valid_list.push_back(cellid);
     for (int ilayer = 1; ilayer < 34; ilayer++) {
       auto [xl, yl] = geometry.project_to_layer(cellid, ilayer);
-      ldmx::EcalID idl;
-      try {
-        ldmx::EcalID idl = geometry.ecg().getID(xl, yl, ilayer);  // ID in next layer
-        // does this tell me there is a hit at this id?
-       } catch (const framework::exception::Exception& e) {
-         break;
-       }
+      auto fidl = geometry.getIDFallible(xl, yl, ilayer);
+      if (not fidl) {
+        break;
+      }
+      ldmx::EcalID idl{fidl.value()};
        std::vector<ldmx::EcalID> NList = geometry.ecg().getNN(idl);
        auto projected_ihit = hit_by_id.find(idl);
        if (projected_ihit == hit_by_id.end()) continue;
@@ -292,7 +302,7 @@ std::vector<ldmx::EcalID> MAC2::valid_cells(const std::map<ldmx::EcalID,const ld
     double beamy = 0;  // assume for now
     double beamz = 0;  // assume for now
     CalibGeom cg(geometry, beamx, beamy, beamz);
-    std::cout << "New Event" << std::endl;
+    //std::cout << "New Event" << std::endl;
     std::vector<ldmx::EcalID> seed_ids = find_seeds(hit_by_id, cg);
     std::vector<ldmx::EcalID> path_cells = valid_cells(hit_by_id,cg, seed_ids);
     // now to fill histos // should make a function?

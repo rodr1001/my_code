@@ -38,12 +38,12 @@ import LDMX.Ecal.EcalGeometry
 
 prod = from_file('Search-MAC.cxx', 'MAC2')
 prod.seed_thresh = 0.13/2 # half a MIP
-prod.path_veto_thresh = 0.13*2 #double MIP
+prod.path_veto_thresh = 0.13*4 #double MIP #4 mip
 prod.path_veto_count = 2 # only 2 in 19 allowed to be this big
-prod.noise_thresh = 0.13/4 #just above noise thresh? quarter mip
+prod.noise_thresh = 0.13/2 #just above noise thresh? quarter mip #v2 half mip
 
 p.sequence = [ prod ]
-#p.maxEvents = 1000
+#p.maxEvents = 50
 import sys
 p.inputFiles = sys.argv[1:]
-p.histogramFile = 'hist-filtering.root'
+p.histogramFile = 'hist-filtering-v3.root'
