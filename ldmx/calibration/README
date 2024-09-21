@@ -1,1 +1,15 @@
-search-cfg 
+firing command 
+denv fire search-cfg.py beam_8gev_target_physics_tagger_7600_minbrem_5000_run_000*.root
+
+This runs search-cfg.py - the config file on on the event file that follows
+
+Current config file: search-cfg.py
+
+Seed Threshold - for an event to be considered a seed, it must have a normalized amplitude greater than this value
+appears as prod.seed_thresh in search-cfg.py 
+
+Path Veto Threshold - a possible seed is projected along its path through the next five layers, if a neighbour to have an amplitude greater than this the path veto count goes up by 1
+
+Path Veto Count - the maximum number of neigbhours that can have an amplitude above the path veto threshold, before the  possible seed is rejected
+
+Noise Threshold - when choosing events along the projected path of the seed, throw away any event with neighbour cells having amplitudes greater than this.
