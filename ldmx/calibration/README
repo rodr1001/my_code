@@ -13,3 +13,6 @@ Path Veto Threshold - a possible seed is projected along its path through the ne
 Path Veto Count - the maximum number of neigbhours that can have an amplitude above the path veto threshold, before the  possible seed is rejected
 
 Noise Threshold - when choosing events along the projected path of the seed, throw away any event with neighbour cells having amplitudes greater than this.
+
+This generates a root file, specified in the config file.
+
