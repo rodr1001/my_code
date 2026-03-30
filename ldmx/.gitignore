@@ -10,7 +10,9 @@
 *.jpg
 *.png
 *.ps
+.ipynb_checkpoints
 
 # hidden files (mostly denv related)
 .*
 !.gitignore
+

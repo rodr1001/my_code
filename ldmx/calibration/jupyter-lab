@@ -1,0 +1,4 @@
+#!/bin/sh
+unset JUPYTER_CONFIG_DIR
+unset JUPYTER_PATH
+jupyter lab --no-browser
