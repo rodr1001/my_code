@@ -1,6 +1,7 @@
 #include "Framework/EventProcessor.h"
 #include "Tracking/Event/Track.h" 
 #include "SimCore/Event/SimTrackerHit.h"
+#include "SimCore/Event/SimParticle.h"
 #include "DetDescr/SimSpecialID.h"
 #include <iostream>
 #include <optional>
@@ -33,7 +34,8 @@ std::vector<const ldmx::Track*> sortByMomentum(const std::vector<ldmx::Track>& t
 }
 
 class TrackAnalyzer : public framework::Analyzer {
-  int no_leading_electron_count = 0;
+    int no_leading_electron_count = 0;
+    int danger_count_ = 0;
   public:
   TrackAnalyzer(const std::string& name, framework::Process& p)
     : framework::Analyzer(name, p) {}
@@ -154,7 +156,9 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
   const auto& hits{event.getCollection<ldmx::SimTrackerHit>("EcalScoringPlaneHits", "")}; // this is closed - can stay here
 
   // radii list?? tech a vector
-  std::vector<int> radii = {2,5,10};
+  std::vector<int> radii = {10}; // {2,5,10};
+  
+  auto thresh = 5.93;
 
   // construct a list of photon positions
   std::vector<std::array<double,3>> photon_positions;
@@ -204,7 +208,7 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
   }
   if (leading_electron == nullptr) {
     no_leading_electron_count ++;
-    std::cout << "Never found an electron entering the ECal in event " << event.getEventNumber() << std::endl; 
+   // std::cout << "Never found an electron entering the ECal in event " << event.getEventNumber() << std::endl; 
     //progress bar of sorts - need to find a way to tidy this
     return;
   }
@@ -228,6 +232,7 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
   const auto& tracks{event.getCollection<ldmx::Track>("RecoilTracksClean", "")};
   // looks like: std::vector<ldmx::Track>
   // histograms_.fill("clean_event_tracks", tracks.size());
+
   for (const auto& trk: tracks) {
     auto track_at_ecal{trk.getTrackState(ldmx::TrackStateType::AtECAL)};
     if (not track_at_ecal) {
@@ -301,6 +306,7 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
 
       // ECAL Scoring plane stuff - should I change my nesting? - put ECAL Stuff within this?
       for (int r: radii) {
+       // std::cout << "For Radius " << r << " mm :" << std::endl;
         // 2: loop through hits again and collect photons that are within radius of this electron
         double nearby_energy{0.0};
         for (const auto* hit: sorted_hits) {
@@ -327,6 +333,37 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
         // last one - by hits - iflead track has more than  10 hits
         if  (hasEnoughHits) {
           histograms_.fill(("leadtrk_reco_nhits_10_vs_Lead_E_w_nearby_R"+std::to_string(r)).c_str(), total_energy_within_R, leadtrk_momentum);
+        
+          if ((total_energy_within_R < 4.00) && (leadtrk_momentum > thresh)) {
+            danger_count_++;
+            std::cout << "\nDanger Event Found No. " << danger_count_ << std::endl;
+            //looking at the kruft - what do i wanna know abou these events?
+            //PDGID, total nearby energy, sim momentum (peff_mag), z momentum, reco track momentum - to beadded to
+            auto PDG_id = leadtrk.getPdgID();
+
+            std::cout << "Lead Track PDG_id = " << PDG_id << std::endl;
+            std::cout << "total energy within R = " << total_energy_within_R << "GeV" << std::endl;
+            std::cout << "PEFF_mag (Sim Momentum) = " <<  peffp_mag << "GeV" << std::endl;
+            std::cout << "PEFF z momentum = " << pz/1000 << "GeV" << std::endl;
+            std::cout << "Reco momentum = " << leadtrk_momentum << "GeV" << std::endl;
+            //std::cout << "PDG_id = " << PDG_id << endl;
+            //std::cout << "PDG_id = " << PDG_id << endl;
+
+            for (const auto& [track_id, particle]: event.getMap<int, ldmx::SimParticle>("SimParticles", "")) {
+              std::cout << track_id << " -> PDG = "
+                 << particle.getPdgID() << " E = " << particle.getEnergy()/1000 << " GeV"
+                 << " p = ( "
+                 << particle.getMomentum()[0]/1000 << ", "
+                 << particle.getMomentum()[1]/1000 << ", "
+                 << particle.getMomentum()[2]/1000 << " ) GeV"
+                 << " vtx = ( "
+                 << particle.getVertex()[0] << ", "
+                 << particle.getVertex()[1] << ", "
+                 << particle.getVertex()[2] << " ) mm"
+                 << "\n";
+            }
+
+         }
         }
       } //exit radii loop
     }//exit lead track at ECal loop
