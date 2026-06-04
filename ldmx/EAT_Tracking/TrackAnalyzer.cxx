@@ -343,10 +343,14 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
                 //std::cout << "total energy within R = " << total_energy_within_R << "GeV" << std::endl;
                 // std::cout << "PEFF_mag (Sim Momentum) = " <<  peffp_mag << "GeV" << std::endl;
                 // std::cout << "PEFF z momentum = " << pz/1000 << "GeV" << std::endl;
-                //std::cout << "Reco momentum = " << leadtrk_momentum << "GeV" << std::endl;
+                std::cout << "Reco momentum = " << leadtrk_momentum << "GeV" << std::endl;
                 //std::cout << "PDG_id = " << PDG_id << endl;
                 //std::cout << "PDG_id = " << PDG_id << endl;
                 std::cout << "Lead Track Q =" << charge << std::endl;
+                const auto& leading_electron_pos = leading_electron->getPosition();
+                auto [x,y] = getImpactPoint(leadtrk_at_ecal.value());
+                std::cout << "Lead Track position = (" << x << "," << y << ")" << std::endl;
+                std::cout << "Lead electron position = (" << leading_electron_pos[0] << "," << leading_electron_pos[1] << "," <<leading_electron_pos[2] << ")" << std::endl;
                 for (const auto& [track_id, particle]: event.getMap<int, ldmx::SimParticle>("SimParticles", "")) {
                   std::cout << track_id << " -> PDG = "
                     << particle.getPdgID() << " E = " << particle.getEnergy()/1000 << " GeV"
