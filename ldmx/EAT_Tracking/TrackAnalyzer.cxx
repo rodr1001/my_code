@@ -36,6 +36,7 @@ std::vector<const ldmx::Track*> sortByMomentum(const std::vector<ldmx::Track>& t
 class TrackAnalyzer : public framework::Analyzer {
   int no_leading_electron_count = 0;
   int danger_count_ = 0;
+  //int HasNonElectron = 0;
   public:
   TrackAnalyzer(const std::string& name, framework::Process& p)
     : framework::Analyzer(name, p) {}
@@ -43,7 +44,8 @@ class TrackAnalyzer : public framework::Analyzer {
   void onProcessStart() final;
   void analyze(const framework::Event& event) final;
   void onProcessEnd() final {
-    std::cout << "no leading electron = " << no_leading_electron_count << std::endl;
+    std::cout << "hits with no leading electron = " << no_leading_electron_count << std::endl;
+    std::cout << "total danger count = " << danger_count_ << std::endl;
   }
 };
 
@@ -150,7 +152,7 @@ void TrackAnalyzer::onProcessStart () {
 
 
   //R=5 - creating them now, not filling them, probably should write a piece of code that goes through this list of R
-  histograms_.create("leadtrk_reco_nhits_10_impact_cuts_vs_Energy_Estimate_R10",
+  histograms_.create("leadtrk_reco_nhits_10_impact_cuts_vs_Energy_Estimate_R5",
       "Energy Estimate (GeV)", 100,0,10,
       "Reco Momentum (GeV)", 100, 0, 10);
   histograms_.create("difference_R5",
@@ -184,21 +186,6 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
   std::vector<int> radii = {10}; // {2,5,10};
 
   auto thresh = 5.93;
-
-  // construct a list of photon positions
-  std::vector<std::array<double,3>> photon_positions;
-  for (const auto& hit: hits){
-    //auto layerID = hit.getLayerID();
-    auto pID = hit.getPdgID();
-    if (pID == 22) {
-      auto pos = hit.getPosition();
-      auto x = pos[0];
-      auto y = pos[1];
-      auto z = pos[2];
-      photon_positions.push_back(std::array<double,3>{x, y, z});
-    }
-  }
-  // end of photon position list - can stay here
 
   //creating a list of sorted hits
   std::vector<const ldmx::SimTrackerHit*> sorted_hits;
@@ -316,7 +303,6 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
             // This is currently nested within RECO, clean tracks, negatively charged, in impact region and with enough hits
             // ECAL Scoring plane stuff
             for (int r: radii) {
-
               // 2: loop through hits again and collect photons that are within radius of this electron
               double nearby_energy{0.0};
               for (const auto* hit: sorted_hits) {
@@ -351,7 +337,7 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
               //}
 
               if ((energy_estimate < 4.00) && (leadtrk_momentum > thresh)) {
-                std::cout << "For Radius " << r << " mm :" << std::endl;
+                //std::cout << "For Radius " << r << " mm :" << std::endl;
 
                 danger_count_++;
                 auto PDG_id = leadtrk.getPdgID();
@@ -367,40 +353,85 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
                 //std::cout << "PDG_id = " << PDG_id << endl;
                 std::cout << "Lead Track Q =" << charge << std::endl;
                 const auto& leading_electron_pos = leading_electron->getPosition();
-                auto [x,y] = getImpactPoint(leadtrk_at_ecal.value());
-                std::cout << "Lead Track position = (" << x << "," << y << ")" << std::endl;
-                std::cout << "Lead electron position = (" << leading_electron_pos[0] << "," << leading_electron_pos[1] << "," <<leading_electron_pos[2] << ")" << std::endl; 
+                //auto [x,y] = getImpactPoint(leadtrk_at_ecal.value());
+                //std::cout << "Lead Track position = (" << x << "," << y << ")" << std::endl;
+                std::cout << "Lead electron position at ECal = (" << leading_electron_pos[0] << "," << leading_electron_pos[1] << "," <<leading_electron_pos[2] << ")" << std::endl; 
+                auto HasNonElectron = 0;
 
                 for (const auto& [track_id, particle]: event.getMap<int, ldmx::SimParticle>("SimParticles", "")) {
+                  auto particle_pdg = particle.getPdgID() ;
+                  if (particle_pdg != 11) { //what if i only printed out those that aren't electrons ... if there were high energy electrons we'd have selected it instead
+                    HasNonElectron = 1;
+                    std::cout << track_id << " -> PDG = "
+                      << particle_pdg << " E = " << particle.getEnergy()/1000 << " GeV"
+                      // << " p = ("
+                      // << particle.getMomentum()[0]/1000 << ", "
+                      // << particle.getMomentum()[1]/1000 << ", "
+                      // << particle.getMomentum()[2]/1000 << " ) GeV"
+                      << " Generated at = ("
+                      << particle.getVertex()[0] << ", "
+                      << particle.getVertex()[1] << ", "
+                      << particle.getVertex()[2] << " ) mm"
+                      << "\n";
 
+                    for (const auto& hit: hits) {
+                      auto ESPH_track_id = hit.getTrackID();
+                      //std::cout << "Ecal Scoring Plane Hit Track ID" << ESPH_track_id << std::endl;
+                      if (ESPH_track_id == track_id) {
+                        auto pos = hit.getPosition();
+                        auto dx = leading_electron_pos[0] - pos[0];
+                        auto dy = leading_electron_pos[1] - pos[1];
+                        auto distance = sqrt((dx*dx)+(dy*dy));
+                        std::cout << "hit ECal at " << pos[0] << ", " << pos[1] << " a distance " << distance << " mm from leading electron"<< std::endl;
 
-                  std::cout << track_id << " -> PDG = "
-                    << particle.getPdgID() << " E = " << particle.getEnergy()/1000 << " GeV"
-                    << " p = ("
-                    << particle.getMomentum()[0]/1000 << ", "
-                    << particle.getMomentum()[1]/1000 << ", "
-                    << particle.getMomentum()[2]/1000 << " ) GeV"
-                    << " vtx = ("
-                    << particle.getVertex()[0] << ", "
-                    << particle.getVertex()[1] << ", "
-                    << particle.getVertex()[2] << " ) mm"
-                    << "\n";
-
-                  for (const auto& hit: hits) {
-                    auto ESPH_track_id = hit.getTrackID();
-                    //std::cout << "Ecal Scoring Plane Hit Track ID" << ESPH_track_id << std::endl;
-                    if (ESPH_track_id == track_id) {
-                      auto pos = hit.getPosition();
-                      std::cout << "hit ECal at " << pos[0] << ", " << pos[1] << ", " << pos[2] << std::endl;
+                      }
                     }
+                    // std::cout << "Did not hit ECal" << std::endl;
+
+
+                   // std::cout << "Non positron value should be 0. Is it? " << HasNonElectron << std::endl;
                   }
-                 // std::cout << "Did not hit ECal" << std::endl;
 
-
+                  //exits Non Electron readout
                 }
 
-                // more specific info read out
+                if (HasNonElectron > 0) {
+//std::cout << "Has non electron" << std::endl;
+continue;
 
+
+                } else {
+                   //std::cout << "Value should be 0. Is it? " << HasNonElectron << std::endl;
+
+                   std::cout << "No non-electrons found for this danger event" << std::endl;
+                  for (const auto& [track_id, particle]: event.getMap<int, ldmx::SimParticle>("SimParticles", "")) {
+                    auto particle_pdg = particle.getPdgID() ;
+
+                    std::cout << track_id << " -> PDG = "
+                      << particle_pdg << " E = " << particle.getEnergy()/1000 << " GeV"
+                      << " p = ("
+                      << particle.getMomentum()[0]/1000 << ", "
+                      << particle.getMomentum()[1]/1000 << ", "
+                      << particle.getMomentum()[2]/1000 << " ) GeV"
+                      << " Generated at = ("
+                      << particle.getVertex()[0] << ", "
+                      << particle.getVertex()[1] << ", "
+                      << particle.getVertex()[2] << " ) mm"
+                      << "\n";
+
+                    for (const auto& hit: hits) {
+                      auto ESPH_track_id = hit.getTrackID();
+                      //std::cout << "Ecal Scoring Plane Hit Track ID" << ESPH_track_id << std::endl;
+                      if (ESPH_track_id == track_id) {
+                        auto pos = hit.getPosition();
+                        auto dx = leading_electron_pos[0] - pos[0];
+                        auto dy = leading_electron_pos[1] - pos[1];
+                        auto distance = sqrt((dx*dx)+(dy*dy));
+                        std::cout << "hit ECal at " << pos[0] << ", " << pos[1] << " a distance " << distance << " mm from leading electron" <<std::endl;
+                      }
+                    }
+                  } //no non electron readout // did i or did i not have a non electron in my simparticles
+                } //simparticle further info
               }//DANGER ZONE READ OUT
             } //exit radii loop
           } // exit hit req
