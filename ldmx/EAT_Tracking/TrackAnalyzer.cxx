@@ -55,19 +55,19 @@ void TrackAnalyzer::onProcessStart () {
   getHistoDirectory(); 
   histograms_.create("event_tracks",
       "No. of Tracks per Event", 100, -0.5, 99.5);
-  histograms_.create("n_hits",
-      "No. of Hits for Lead Track", 100, -0.5, 13.5);
-  histograms_.create("clean_event_tracks",
-      "No. of Clean Tracks per Event", 100, -0.5, 10.5);
+ // histograms_.create("n_hits",
+   //   "No. of Hits for Lead Track", 100, -0.5, 13.5);
+ // histograms_.create("clean_event_tracks",
+   //   "No. of Clean Tracks per Event", 100, -0.5, 10.5);
   //histograms_.create("hits_per_track",
   //"No. of Hits", 100, -0.5,15.5,
   //"No. of Tracks per Event", 100, -0.5, 99.5);
   histograms_.create("impact_point",
-      "X [mm]", 200, -200.0, 200.0,
-      "Y [mm]", 200, -200.0, 200.0);
+      "X [mm]", 500, -200.0, 200.0,
+      "Y [mm]", 500, -200.0, 200.0);
   histograms_.create("leadtrk_impact_point",
-      "X [mm]", 200, -200.0, 200.0,
-      "Y [mm]", 200, -200.0, 200.0);
+      "X [mm]", 500, -200.0, 200.0,
+      "Y [mm]", 500, -200.0, 200.0);
   //  histograms_.create("layerID", "Layer ID of Hits", 100, 0, 32);
   // histograms_.create("pdgID",   "PDG ID of Hits", 1000, 0, 50);
 
@@ -95,7 +95,7 @@ void TrackAnalyzer::onProcessStart () {
       "Reco Momentum (GeV) of Negatively Charged Lead Track",100,0,10);
 
   histograms_.create("reco_leadtrk_momentum_impact_cuts",
-      "Leading Reco Momentum (GeV) with Impact Point Cuts", 100, 0, 10);
+  "Leading Reco Momentum (GeV) with Impact Point Cuts", 100, 0, 10);
   histograms_.create("leadtrk_reco_vs_sim_momentum",
       "Energy Estimate (GeV)", 100, 0, 10,
       "Reco Momentum (GeV)", 100,0, 10);
@@ -183,7 +183,7 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
   const auto& hits{event.getCollection<ldmx::SimTrackerHit>("EcalScoringPlaneHits", "")}; // this is closed - can stay here
 
   // radii list?? tech a vector
-  std::vector<int> radii = {10}; // {2,5,10};
+  std::vector<int> radii = {2}; // {2,5,10};
 
   auto thresh = 5.93;
 
@@ -240,7 +240,7 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
       continue;
     }
     auto [x,y] = getImpactPoint(track_at_ecal.value());
-    // histograms_.fill("impact_point", x, y);
+    histograms_.fill("impact_point", x, y);
   }
   for (const auto& trk: tracks) {
     auto M_mag = mag(trk.getMomentum());
@@ -344,14 +344,14 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
                 std::cout << "\nDanger Event Found No. " << danger_count_ << std::endl;
                 //looking at the kruft - what do i wanna know abou these events?
                 //PDGID, total nearby energy, sim momentum (peff_mag), z momentum, reco track momentum - to beadded t
-                std::cout << "Lead Track PDG_id = " << PDG_id << std::endl;
+               // std::cout << "Lead Track PDG_id = " << PDG_id << std::endl;
                 //std::cout << "total energy within R = " << total_energy_within_R << "GeV" << std::endl;
                 // std::cout << "PEFF_mag (Sim Momentum) = " <<  peffp_mag << "GeV" << std::endl;
                 // std::cout << "PEFF z momentum = " << pz/1000 << "GeV" << std::endl;
                 std::cout << "Reco momentum = " << leadtrk_momentum << "GeV" << std::endl;
                 //std::cout << "PDG_id = " << PDG_id << endl;
-                //std::cout << "PDG_id = " << PDG_id << endl;
-                std::cout << "Lead Track Q =" << charge << std::endl;
+                std::cout << "energy estimate = " << energy_estimate << endl;
+               // std::cout << "Lead Track Q =" << charge << std::endl;
                 const auto& leading_electron_pos = leading_electron->getPosition();
                 //auto [x,y] = getImpactPoint(leadtrk_at_ecal.value());
                 //std::cout << "Lead Track position = (" << x << "," << y << ")" << std::endl;
