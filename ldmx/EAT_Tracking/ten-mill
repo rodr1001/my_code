@@ -1,0 +1,15 @@
+#!/bin/bash
+
+set -o nounset
+set -o errexit
+
+if ! git diff --exit-code TrackAnalyzer.cxx; then
+  echo "error! uncommitted changes to TrackAnalyzer.cxx, will not run over all ten million"
+  exit 1
+fi
+
+commit_sha="$(git rev-parse --short=8 HEAD)"
+denv fire track_ana_cfg.py \
+  --run-tag "${commit_sha}" \
+  /local/cms/user/eichl008/ldmx/eat/v14/8gev/bkgd/true-inclusive-0-with-tracking/category_trueinclusive_Nevents_100k_MaxTries_1_run_00* |\
+  tee "ten-mill-events-${commit_sha}.log"
