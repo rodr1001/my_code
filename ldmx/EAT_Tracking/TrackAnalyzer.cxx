@@ -87,6 +87,8 @@ void TrackAnalyzer::onProcessStart () {
       "Track Reco Momentum (GeV)", 100, 0, 10);
   histograms_.create("sim_momentum",
       "Primary Electron Sim Momentum (GeV)", 100, 0, 10);
+  histograms_.create("esph_momentum",
+      "Hit Momentum at ECal (GeV)", 100, 0, 10);
 
   //investigating charge of lead tracks
   // histograms_.create("leadtrk_charge", "Charge of Leading Track", 1000,-2,2);
@@ -106,6 +108,11 @@ void TrackAnalyzer::onProcessStart () {
   histograms_.create("leadtrk_reco_vs_sim_momentum",
       "Primary Electron Sim Momentum (GeV)", 100, 0, 10,
       "Lead Track Reco Momentum (GeV)", 100,0, 10);
+  histograms_.create("leadtrk_reco_vs_esph_momentum",
+      "Hit Momentum at ECal (GeV)", 100, 0, 10,
+      "Lead Track Reco Momentum (GeV)", 100,0, 10);
+
+
 
   //  histograms_.create("leadtrk_reco_vs_sim_momentum_impact_cuts",
   //    "Primary Electron Sim Momentum (GeV)",100,0,10,
@@ -229,6 +236,10 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
     return;
   }
   auto leading_electron_energy = (leading_electron->getEnergy())/1000;
+
+
+
+
   //histograms_.fill("leading_electron_energy", leading_electron_energy);
 
   // Now creating the Tracks collection - this is where I have Reco and Sim Momentum - i should be out of everything except the analyse call
@@ -250,12 +261,16 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
     auto M_mag = mag(trk.getMomentum());
     histograms_.fill("reco_momentum", M_mag);
   }
-  auto px = event.getObject<double>("PEFFPx","");
-  auto py = event.getObject<double>("PEFFPy","");
-  auto pz = event.getObject<double>("PEFFPz","");
-  const std::vector<double> peffp{px,py,pz};
-  auto peffp_mag = mag(peffp)/1000; //both reco and sim in GeV now
-  histograms_.fill("sim_momentum", peffp_mag);
+
+
+  //only works for 100k runs
+  //auto px = event.getObject<double>("PEFFPx","");
+ // auto py = event.getObject<double>("PEFFPy","");
+  //auto pz = event.getObject<double>("PEFFPz","");
+
+  //const std::vector<double> peffp{px,py,pz};
+  //auto peffp_mag = mag(peffp)/1000; //both reco and sim in GeV now
+  //histograms_.fill("sim_momentum", peffp_mag);
 
   //i want the leading track - the one with the highest momentum
 
@@ -280,7 +295,27 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
       auto leadtrk_momentum = mag(leadtrk.getMomentum());
       histograms_.fill("reco_leadtrk_momentum", leadtrk_momentum);
 
-      histograms_.fill("leadtrk_reco_vs_sim_momentum",peffp_mag,leadtrk_momentum);
+
+     // histograms_.fill("leadtrk_reco_vs_sim_momentum",peffp_mag,leadtrk_momentum);
+
+      for (const auto* hit: sorted_hits) {
+
+        // skip our leading electron
+        if (hit == leading_electron) {
+
+          //we've defined the leading electron, this is where we can define our "PEFFP"
+          auto hit_momentum = hit->getMomentum();
+          auto hpx = hit_momentum[0];
+          auto hpy = hit_momentum[1];
+          auto hpz = hit_momentum[2];
+          const std::vector<double> ESPHp = {hpx,hpy,hpz};
+          auto ESPHp_mag = mag(ESPHp)/1000; //both reco and sim in GeV now
+          histograms_.fill("esph_momentum",ESPHp_mag);
+          histograms_.fill("leadtrk_reco_vs_esph_momentum",ESPHp_mag,leadtrk_momentum);
+
+        }
+      }
+
 
       auto QoP = leadtrk.getQoP();
       auto charge = QoP*leadtrk_momentum;
@@ -292,48 +327,48 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
       bool inBeamspot = (x >= -11.5 && x <= 9) && (y >= -38.5 && y <= 38.5);
       bool hasEnoughHits  = (nhits >= 10);
 
+
       // before radius loop because that's irrelevant
       if (hasEnoughHits) {
-        histograms_.fill("leadtrk_reco_vs_sim_momentum_nhits_10", peffp_mag, leadtrk_momentum);
+       // histograms_.fill("leadtrk_reco_vs_sim_momentum_nhits_10", peffp_mag, leadtrk_momentum);
         histograms_.fill("leadtrk_nhits_10_impact_point", x, y);
         if (charge < 0) {
           histograms_.fill("leadtrk_nhits_10_neg_charge_impact_point", x,y);
           if  (inBeamspot) {
-            histograms_.fill("leadtrk_reco_vs_sim_momentum_all_reqs", peffp_mag, leadtrk_momentum);
+           // histograms_.fill("leadtrk_reco_vs_sim_momentum_all_reqs", peffp_mag, leadtrk_momentum);
             histograms_.fill("reco_leadtrk_momentum_all_reqs", leadtrk_momentum);
             histograms_.fill("leadtrk_all_req_reduced_chi2", chi2/4);
 
             GoodTracks ++;
-            // This is currently nested within RECO, clean tracks, negatively charged, in impact region and with enough hits
-           
-           // ECAL Scoring plane stuff
+
+            // ECAL Scoring plane stuff
 
             //for (int r: radii){ 
             //// 2: loop through hits again and collect photons that are within radius of this electron
             double nearby_energy{0.0};
-            
-          
-           //create a used id list to not double count circling particles
+
+
+            //create a used id list to not double count circling particles
             std::set<int> used_ids;
 
             for (const auto* hit: sorted_hits) {
+
               // skip our leading electron
               if (hit == leading_electron) {
                 used_ids.insert(hit->getTrackID()); //add the leading electrons ID to the used id list
                 continue;
               } //close leading electron skip
 
+
               const auto& leading_electron_pos = leading_electron->getPosition();
-
               // could filter for things here
-
               if ((hit->getPdgID() == 11) or (hit->getPdgID() == -11) or (hit->getPdgID() == 22)) {
                 const auto& pos = hit->getPosition();
-                
+
                 bool inImpactRegion = (
-                  (pos[0] >= -20 && pos[0] <= 20) &&
-                  (pos[1] >= -50 && pos[1] <= 50)
-                ); // nearby energy is whatever energy is in this region
+                    (pos[0] >= -20 && pos[0] <= 20) &&
+                    (pos[1] >= -50 && pos[1] <= 50)
+                    ); // nearby energy is whatever energy is in this region
 
                 //auto dx = leading_electron_pos[0] - pos[0];
                 //auto dy = leading_electron_pos[1] - pos[1];
@@ -344,99 +379,89 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
                   nearby_energy += (hit->getEnergy()/1000);
                 }
               }
-            } //close sorted hits & adding nearby energy
-            
-            auto leading_electron_energy = (leading_electron->getEnergy())/1000;
-            auto energy_estimate = leading_electron_energy + nearby_energy ;
-            auto difference = leadtrk_momentum - energy_estimate;
+              } //close sorted hits & adding nearby energy
 
-            histograms_.fill("leadtrk_reco_all_reqs_vs_Energy_Estimate_Beamspot", energy_estimate, leadtrk_momentum);
-            histograms_.fill("difference_Beamspot", difference);
-            histograms_.fill("energy_diff_vs_chi2_Beamspot", chi2, difference);
+              auto leading_electron_energy = (leading_electron->getEnergy())/1000;
+              auto energy_estimate = leading_electron_energy + nearby_energy ;
+              auto difference = leadtrk_momentum - energy_estimate;
 
-            // Radius histograms 
+              histograms_.fill("leadtrk_reco_all_reqs_vs_Energy_Estimate_Beamspot", energy_estimate, leadtrk_momentum);
+              histograms_.fill("difference_Beamspot", difference);
+              histograms_.fill("energy_diff_vs_chi2_Beamspot", chi2, difference);
 
-            //histograms_.fill(("leadtrk_reco_nhits_10_impact_cuts_vs_Energy_Estimate_R"+std::to_string(r)).c_str(), energy_estimate, leadtrk_momentum);
-            //histograms_.fill(("difference_R" +std::to_string(r)).c_str(), difference);
-            //histograms_.fill(("energy_diff_vs_chi2_R"+std::to_string(r)).c_str() , chi2, difference);
-            
-            bool Estimate_TooBig = (energy_estimate > 8.00);
-            bool inDangerZone = (
-                (energy_estimate < 4.00) &&
-                (leadtrk_momentum  > thresh)
-                );
+              // Radius histograms 
 
-            if (Estimate_TooBig) {
-              //std::cout << "For Radius " << r << " mm :" << std::endl;
-              estimate_too_big_count++;
-              std::cout << "Too Large Energy Event Found No. " << estimate_too_big_count << std::endl;
-              std::cout << "Reco Momentum = " << leadtrk_momentum << " GeV" << std::endl;
-              std::cout << "Energy Estimate = " << energy_estimate << " GeV" << std::endl;
-              std::cout << "ECal Scoring Plane Hit Track IDs used" << std::endl;
-              for (const auto& hit: hits) {
-                auto PdgID = hit.getPdgID();
-                if ((PdgID == 11) or (PdgID == -11) or (PdgID == 22)){
-                  auto ESPH_track_id = hit.getTrackID();
-                  auto pos = hit.getPosition();
-                  std::cout << ESPH_track_id << "->" 
-                  << " PDG = " << PdgID
-                  << " hit ECal at " << pos[0] << ", " << pos[1] 
-                  << " with E = " << hit.getEnergy()/1000 << " GeV"
-                  << std::endl;
-                } //only want to examine photons, positrons and electrons nearby  
-              } // ends energy and hit position for estimate too big
-              std::cout <<"\n" << std::endl;
-            }  // ends readout for Estimate Too Big
-           
-           if (inDangerZone) {
-             danger_count_++;
-             std::cout << "Danger Event Found No. " << danger_count_ << std::endl;
-             std::cout << "Reco Momentum = " << leadtrk_momentum << " GeV" << std::endl;
-             std::cout << "Energy Estimate = " << energy_estimate << " GeV" << std::endl;
-             for (const auto& [track_id, particle]: event.getMap<int, ldmx::SimParticle>("SimParticles", "")) {
-               auto particle_pdg = particle.getPdgID() ;
-               std::cout << track_id << " -> PDG = " << particle_pdg
-                << " Generated at = ("
-                << particle.getVertex()[0] << ", "
-                << particle.getVertex()[1] << ", "
-                << particle.getVertex()[2] << ") "
-                << "Sim Particle E = " << particle.getEnergy()/1000 << " GeV" << std::endl;
-               for (const auto& hit: hits) {
-                 auto ESPH_track_id = hit.getTrackID();
-                 if (ESPH_track_id == track_id) {
-                  
-                   auto pos = hit.getPosition();
-                   if ((pos[0] >= -20 && pos[0] <= 20) && (pos[1] >= -50 && pos[1] <= 50)) { // nearby energy is whatever energy is in this region
-                     std::cout << "hit ECal at " << pos[0] << ", " << pos[1] << " with E = " <<hit.getEnergy()/1000 << " GeV within the beamspot region"  <<std::endl;
-                   } 
-                   else {
-                     std::cout << "hit ECal at " << pos[0] << ", " << pos[1] << " with E = " << hit.getEnergy()/1000 << " GeV outside the beamspot region"  <<std::endl;
-                   } // ESPH ID matches Track ID, we know this track hit the ECal and where
-                   std::cout << " " <<std::endl;
-                 }
-                 //else {
-                   //std::cout << "Did not hit the ECal" << std::endl;
-                 //}
-               }  // ends the search for where the sim particle ended up
-             }//look at simparticles
-             std::cout<<"\n"<<std::endl;
-           }//DANGER ZONE READ OUT
-              // } //exit radii loop
-          } // exit track must hit beamspot req
-        } //exit charge req
-      } // exit hit req
-    }//exit lead track at ECal loop
-  }// close sorted tracks 
+              //histograms_.fill(("leadtrk_reco_nhits_10_impact_cuts_vs_Energy_Estimate_R"+std::to_string(r)).c_str(), energy_estimate, leadtrk_momentum);
+              //histograms_.fill(("difference_R" +std::to_string(r)).c_str(), difference);
+              //histograms_.fill(("energy_diff_vs_chi2_R"+std::to_string(r)).c_str() , chi2, difference);
 
-  // const auto& dtracks{event.getCollection<ldmx::Track>("RecoilTracks", "")};
-  // looks like: std::vector<ldmx::Track>
-  // histograms_.fill("event_tracks", dtracks.size());
+              bool Estimate_TooBig = (energy_estimate > 10.00); //8 is regular, change to absurd number to remove loop
+              bool inDangerZone = (
+                  (energy_estimate < 4.00) &&
+                  (leadtrk_momentum  > thresh)
+                  );
 
+              if (Estimate_TooBig) {
+                //std::cout << "For Radius " << r << " mm :" << std::endl;
+                estimate_too_big_count++;
+                std::cout << "Too Large Energy Event Found No. " << estimate_too_big_count << std::endl;
+                std::cout << "Reco Momentum = " << leadtrk_momentum << " GeV" << std::endl;
+                std::cout << "Energy Estimate = " << energy_estimate << " GeV" << std::endl;
+                std::cout << "ECal Scoring Plane Hit Track IDs used" << std::endl;
+                for (const auto& hit: hits) {
+                  auto PdgID = hit.getPdgID();
+                  if ((PdgID == 11) or (PdgID == -11) or (PdgID == 22)){
+                    auto ESPH_track_id = hit.getTrackID();
+                    auto pos = hit.getPosition();
+                    std::cout << ESPH_track_id << "->" 
+                      << " PDG = " << PdgID
+                      << " hit ECal at " << pos[0] << ", " << pos[1] 
+                      << " with E = " << hit.getEnergy()/1000 << " GeV"
+                      << std::endl;
+                  } //only want to examine photons, positrons and electrons nearby  
+                } // ends energy and hit position for estimate too big
+                std::cout <<"\n" << std::endl;
+              }  // ends readout for Estimate Too Big
 
-  // i want to figure out the no. of tracks per event
-  //  RunHeader.description_.size()
+              if (inDangerZone) {
+                danger_count_++;
+                std::cout << "Danger Event Found No. " << danger_count_ << std::endl;
+                std::cout << "Reco Momentum = " << leadtrk_momentum << " GeV" << std::endl;
+                std::cout << "Energy Estimate = " << energy_estimate << " GeV" << std::endl;
+                for (const auto& [track_id, particle]: event.getMap<int, ldmx::SimParticle>("SimParticles", "")) {
+                  auto particle_pdg = particle.getPdgID() ;
+                  std::cout << track_id << " -> PDG = " << particle_pdg
+                    << " Generated at = ("
+                    << particle.getVertex()[0] << ", "
+                    << particle.getVertex()[1] << ", "
+                    << particle.getVertex()[2] << ") "
+                    << "Sim Particle E = " << particle.getEnergy()/1000 << " GeV" << std::endl;
+                  for (const auto& hit: hits) {
+                    auto ESPH_track_id = hit.getTrackID();
+                    if (ESPH_track_id == track_id) {
 
-} //close analyser
+                      auto pos = hit.getPosition();
+                      if ((pos[0] >= -20 && pos[0] <= 20) && (pos[1] >= -50 && pos[1] <= 50)) { // nearby energy is whatever energy is in this region
+                        std::cout << "hit ECal at " << pos[0] << ", " << pos[1] << " with E = " <<hit.getEnergy()/1000 << " GeV within the beamspot region"  <<std::endl;
+                      } 
+                      else {
+                        std::cout << "hit ECal at " << pos[0] << ", " << pos[1] << " with E = " << hit.getEnergy()/1000 << " GeV outside the beamspot region"  <<std::endl;
+                      } // ESPH ID matches Track ID, we know this track hit the ECal and where
+                      std::cout << " " <<std::endl;
+                    }
+                    //else {
+                    //std::cout << "Did not hit the ECal" << std::endl;
+                    //}
+                  }  // ends the search for where the sim particle ended up
+                }//look at simparticles
+                std::cout<<"\n"<<std::endl;
+              }//DANGER ZONE READ OUT
+              // close sorted hits  // } //exit radii loop
+          } // exit inBamspot loop
+          }//exit charge requirement
+        }//exit hit requirement
+      }//exit lead track at ECal loop
+    }// close sorted tracks 
+  } //close analyser
 
-
-DECLARE_ANALYZER(TrackAnalyzer);
+  DECLARE_ANALYZER(TrackAnalyzer);
