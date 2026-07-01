@@ -395,7 +395,7 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
               //histograms_.fill(("difference_R" +std::to_string(r)).c_str(), difference);
               //histograms_.fill(("energy_diff_vs_chi2_R"+std::to_string(r)).c_str() , chi2, difference);
 
-              bool Estimate_TooBig = (energy_estimate > 10.00); //8 is regular, change to absurd number to remove loop
+              bool Estimate_TooBig = (energy_estimate > 100.00); //8 is regular, change to absurd number to remove loop
               bool inDangerZone = (
                   (energy_estimate < 4.00) &&
                   (leadtrk_momentum  > thresh)
@@ -428,6 +428,9 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
                 std::cout << "Danger Event Found No. " << danger_count_ << std::endl;
                 std::cout << "Reco Momentum = " << leadtrk_momentum << " GeV" << std::endl;
                 std::cout << "Energy Estimate = " << energy_estimate << " GeV" << std::endl;
+                std::cout << "Leading Electron Energy = " << leading_electron_energy << " GeV" << std::endl;
+                std::cout << "Impact Point of Leading Electron = (" << leading_electron_pos[0]<< "," << leading_electron_pos[1]<<")" << std::endl;
+                std::cout << "Impact Point of Lead Track = (" << x << "," <<  y <<")" << std::endl;
                 for (const auto& [track_id, particle]: event.getMap<int, ldmx::SimParticle>("SimParticles", "")) {
                   auto particle_pdg = particle.getPdgID() ;
                   std::cout << track_id << " -> PDG = " << particle_pdg
@@ -439,7 +442,7 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
                   for (const auto& hit: hits) {
                     auto ESPH_track_id = hit.getTrackID();
                     if (ESPH_track_id == track_id) {
-
+                      std::cout << "Produced by Process No. " << particle.getProcessType() << std::endl;
                       auto pos = hit.getPosition();
                       if ((pos[0] >= -20 && pos[0] <= 20) && (pos[1] >= -50 && pos[1] <= 50)) { // nearby energy is whatever energy is in this region
                         std::cout << "hit ECal at " << pos[0] << ", " << pos[1] << " with E = " <<hit.getEnergy()/1000 << " GeV within the beamspot region"  <<std::endl;
@@ -454,7 +457,6 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
                     //}
                   }  // ends the search for where the sim particle ended up
                 }//look at simparticles
-                std::cout<<"\n"<<std::endl;
               }//DANGER ZONE READ OUT
               // close sorted hits  // } //exit radii loop
           } // exit inBamspot loop
