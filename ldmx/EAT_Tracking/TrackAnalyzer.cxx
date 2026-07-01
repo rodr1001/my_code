@@ -360,7 +360,7 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
               } //close leading electron skip
 
 
-              const auto& leading_electron_pos = leading_electron->getPosition();
+              auto leading_electron_pos = leading_electron->getPosition();
               // could filter for things here
               if ((hit->getPdgID() == 11) or (hit->getPdgID() == -11) or (hit->getPdgID() == 22)) {
                 const auto& pos = hit->getPosition();
@@ -429,6 +429,7 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
                 std::cout << "Reco Momentum = " << leadtrk_momentum << " GeV" << std::endl;
                 std::cout << "Energy Estimate = " << energy_estimate << " GeV" << std::endl;
                 std::cout << "Leading Electron Energy = " << leading_electron_energy << " GeV" << std::endl;
+                auto leading_electron_pos = leading_electron->getPosition();
                 std::cout << "Impact Point of Leading Electron = (" << leading_electron_pos[0]<< "," << leading_electron_pos[1]<<")" << std::endl;
                 std::cout << "Impact Point of Lead Track = (" << x << "," <<  y <<")" << std::endl;
                 for (const auto& [track_id, particle]: event.getMap<int, ldmx::SimParticle>("SimParticles", "")) {
