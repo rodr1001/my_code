@@ -399,12 +399,12 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
                   (leadtrk_momentum  > thresh)
                   );
               bool inSkimZone = (
-                  (energy estimate < 5.00) &&
+                  (energy_estimate < 5.00) &&
                   (leadtrk_momentum > (energy_estimate + 0.5))
                   );
               if (inSkimZone) {
                 skimzone_count ++;
-                setStorangeHint(framework::hint_shouldKeep);
+                setStorageHint(framework::hint_shouldKeep);
                 histograms_.fill("skim_zone_leadtrk_reco_all_reqs_vs_energy_estimate_beamspot", energy_estimate, leadtrk_momentum);
               }
 
