@@ -37,6 +37,7 @@ class TrackAnalyzer : public framework::Analyzer {
   int no_leading_electron_count = 0;
   int danger_count_ = 0;
   int estimate_too_big_count = 0;
+  int skimzone_count = 0;
   int TrackNumber = 0;
   int GoodTracks = 0;
   public:
@@ -48,7 +49,8 @@ class TrackAnalyzer : public framework::Analyzer {
   void onProcessEnd() final {
     std::cout << "hits with no leading electron = " << no_leading_electron_count << std::endl;
     std::cout << "total danger count = " << danger_count_ << std::endl;
-    std::cout << "total energy estimate too big count = " << estimate_too_big_count << std::endl;
+    std::cout << "total skimzone count = " << skimzone_count << std::endl;
+    //std::cout << "total energy estimate too big count = " << estimate_too_big_count << std::endl;
     std::cout << "total lead tracks at ECal = " << TrackNumber << std::endl;
     std::cout << "Total Lead Tracks, negatively charged, within beamspot and with 10 hits = " << GoodTracks<< std::endl;
   }
@@ -183,7 +185,9 @@ void TrackAnalyzer::onProcessStart () {
   histograms_.create("energy_diff_vs_chi2_Beamspot",
       "Chi2 of Lead Track", 100, 0, 20,
       "Energy Difference (Reco - Estimate)(GeV)", 100,-10,10);
-
+  histograms_.create("skim_zone_leadtrk_reco_all_reqs_vs_energy_estimate_beamspot",
+      "Energy Estimate within Beamspot (GeV)", 100, 0, 10,
+      "Lead Track Reco Momentum (GeV)", 100, 0, 10);
 
 
 }
@@ -389,42 +393,24 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
               histograms_.fill("difference_Beamspot", difference);
               histograms_.fill("energy_diff_vs_chi2_Beamspot", chi2, difference);
 
-              // Radius histograms 
-
-              //histograms_.fill(("leadtrk_reco_nhits_10_impact_cuts_vs_Energy_Estimate_R"+std::to_string(r)).c_str(), energy_estimate, leadtrk_momentum);
-              //histograms_.fill(("difference_R" +std::to_string(r)).c_str(), difference);
-              //histograms_.fill(("energy_diff_vs_chi2_R"+std::to_string(r)).c_str() , chi2, difference);
-
-              bool Estimate_TooBig = (energy_estimate > 100.00); //8 is regular, change to absurd number to remove loop
+              //bool Estimate_TooBig = (energy_estimate > 100.00); //8 is regular, change to absurd number to remove loop
               bool inDangerZone = (
                   (energy_estimate < 4.00) &&
                   (leadtrk_momentum  > thresh)
                   );
-
-              if (Estimate_TooBig) {
-                //std::cout << "For Radius " << r << " mm :" << std::endl;
-                estimate_too_big_count++;
-                std::cout << "Too Large Energy Event Found No. " << estimate_too_big_count << std::endl;
-                std::cout << "Reco Momentum = " << leadtrk_momentum << " GeV" << std::endl;
-                std::cout << "Energy Estimate = " << energy_estimate << " GeV" << std::endl;
-                std::cout << "ECal Scoring Plane Hit Track IDs used" << std::endl;
-                for (const auto& hit: hits) {
-                  auto PdgID = hit.getPdgID();
-                  if ((PdgID == 11) or (PdgID == -11) or (PdgID == 22)){
-                    auto ESPH_track_id = hit.getTrackID();
-                    auto pos = hit.getPosition();
-                    std::cout << ESPH_track_id << "->" 
-                      << " PDG = " << PdgID
-                      << " hit ECal at " << pos[0] << ", " << pos[1] 
-                      << " with E = " << hit.getEnergy()/1000 << " GeV"
-                      << std::endl;
-                  } //only want to examine photons, positrons and electrons nearby  
-                } // ends energy and hit position for estimate too big
-                std::cout <<"\n" << std::endl;
-              }  // ends readout for Estimate Too Big
+              bool inSkimZone = (
+                  (energy estimate < 5.00) &&
+                  (leadtrk_momentum > (energy_estimate + 0.5))
+                  );
+              if (inSkimZone) {
+                skimzone_count ++;
+                setStorangeHint(framework::hint_shouldKeep);
+                histograms_.fill("skim_zone_leadtrk_reco_all_reqs_vs_energy_estimate_beamspot", energy_estimate, leadtrk_momentum);
+              }
 
               if (inDangerZone) {
                 danger_count_++;
+                setStorageHint(framework::hint_shouldKeep);
                 std::cout << "Danger Event Found No. " << danger_count_ << std::endl;
                 std::cout << "Reco Momentum = " << leadtrk_momentum << " GeV" << std::endl;
                 std::cout << "Energy Estimate = " << energy_estimate << " GeV" << std::endl;
