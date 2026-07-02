@@ -116,9 +116,9 @@ void TrackAnalyzer::onProcessStart () {
 
 
 
-  //  histograms_.create("leadtrk_reco_vs_sim_momentum_impact_cuts",
-  //    "Primary Electron Sim Momentum (GeV)",100,0,10,
-  //  "Lead Track Reco Momentum (GeV)", 100,0, 10);
+  histograms_.create("leadtrk_reco_vs_lead_electron_energy",
+      "Primary Electron Energy (GeV)",100,0,10,
+      "Lead Track Reco Momentum (GeV)", 100,0, 10);
 
   histograms_.create("leadtrk_reco_vs_sim_momentum_all_reqs",
       "Primary Electron Sim Momentum (GeV)",100,0,10,
@@ -314,8 +314,10 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
           auto hpz = hit_momentum[2];
           const std::vector<double> ESPHp = {hpx,hpy,hpz};
           auto ESPHp_mag = mag(ESPHp)/1000; //both reco and sim in GeV now
+          auto lead_electron_energy = (hit->getEnergy())/1000;
           histograms_.fill("esph_momentum",ESPHp_mag);
           histograms_.fill("leadtrk_reco_vs_esph_momentum",ESPHp_mag,leadtrk_momentum);
+          histograms_.fill("leadtrk_reco_vs_lead_electron_energy",lead_electron_energy, leadtrk_momentum);
 
         }
       }
