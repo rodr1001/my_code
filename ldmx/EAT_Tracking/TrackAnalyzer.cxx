@@ -46,6 +46,8 @@ class TrackAnalyzer : public framework::Analyzer {
   int zone3_total = 0;
   int zone4_count = 0;
   int zone4_total =0;
+  int zone5_count = 0;
+  int zone5_total =0;
   int skimzone_count = 0;
   int TrackNumber = 0;
   int GoodTracks = 0;
@@ -68,6 +70,7 @@ class TrackAnalyzer : public framework::Analyzer {
     std::cout << "zone 2 count = "<< zone2_count << " out of "<< zone2_total <<" events" << std::endl;
     std::cout << "zone 3 count = "<< zone3_count << " out of "<< zone3_total <<" events" << std::endl;
     std::cout << "zone 4 count = "<< zone4_count << " out of "<< zone4_total <<" events" << std::endl;
+    std::cout << "zone 5 count = " << zone5_count << " out of "<< zone5_total << " events" << std::endl;
     std::cout << "total skimzone count = " << skimzone_count << std::endl;
     //std::cout << "total energy estimate too big count = " << estimate_too_big_count << std::endl;
     std::cout << "total lead tracks at ECal = " << TrackNumber << std::endl;
@@ -337,11 +340,16 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
                 }
               } else {
                 zone4_total ++;
-                if (rando < 0.1) {
+                if (rando < 0.01) {
                   recordSkimZone(zone4_count,energy_estimate,leadtrk_momentum );
                 }
               }
-             } // end skim zone examination
+             } else {
+               zone5_total ++;
+               if (rando <0.0001) {
+                 recordSkimZone(zone5_count,energy_estimate, leadtrk_momentum );
+              }
+             }// end skim zone examination
             } // exit inBamspot loop
           }//exit charge requirement
         }//exit hit requirement
