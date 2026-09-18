@@ -5,6 +5,7 @@
 #include "DetDescr/SimSpecialID.h"
 #include "Ecal/Event/EcalHit.h"
 #include "Recon/Event/CalorimeterHit.h"
+#include "Hcal/Event/HcalHit.h"
 #include <iostream>
 #include <optional>
 #include <vector>
@@ -38,7 +39,7 @@ std::vector<const ldmx::Track*> sortByMomentum(const std::vector<ldmx::Track>& t
 
 class SkimZoneTrackAnalyzer : public framework::Analyzer {
   int no_leading_electron_count = 0;
-  //int danger_count_ = 0;
+  int danger_count = 0;
   //int estimate_too_big_count = 0;
   int zone1_count = 0;
   int zone1_total =0;
@@ -61,7 +62,7 @@ class SkimZoneTrackAnalyzer : public framework::Analyzer {
   void analyze(const framework::Event& event) final;
   void onProcessEnd() final {
     std::cout << "hits with no leading electron = " << no_leading_electron_count << std::endl;
-    //std::cout << "total danger count = " << danger_count_ << std::endl;
+    std::cout << "total danger count = " << danger_count << std::endl;
   std::cout << "zone 1 count = "<< zone1_count << " out of "<< zone1_total <<" events"<<std::endl;
     std::cout << "zone 2 count = "<< zone2_count << " out of "<< zone2_total <<" events" << std::endl;
     std::cout << "zone 3 count = "<< zone3_count << " out of "<< zone3_total <<" events" << std::endl;
@@ -128,6 +129,24 @@ void SkimZoneTrackAnalyzer::onProcessStart () {
       "Total Ecal Energy (GeV)", 100, 0,10,
       "Lead Track Reco Momentum (GeV)", 100, 0, 10);
 
+  histograms_.create("leadtrk_reco_all_reqs_vs_ecal_energy_zone_1",
+      "Total Ecal Energy (GeV)", 100, 0,10,
+      "Lead Track Reco Momentum (GeV)", 100, 0, 10);
+   histograms_.create("leadtrk_reco_all_reqs_vs_ecal_energy_zone_2",
+      "Total Ecal Energy (GeV)", 100, 0,10,
+      "Lead Track Reco Momentum (GeV)", 100, 0, 10);
+ histograms_.create("leadtrk_reco_all_reqs_vs_ecal_energy_zone_3",
+      "Total Ecal Energy (GeV)", 100, 0,10,
+      "Lead Track Reco Momentum (GeV)", 100, 0, 10);
+ histograms_.create("leadtrk_reco_all_reqs_vs_ecal_energy_zone_4",
+      "Total Ecal Energy (GeV)", 100, 0,10,
+      "Lead Track Reco Momentum (GeV)", 100, 0, 10);
+ histograms_.create("leadtrk_reco_all_reqs_vs_ecal_energy_zone_5",
+      "Total Ecal Energy (GeV)", 100, 0,10,
+      "Lead Track Reco Momentum (GeV)", 100, 0, 10);
+
+
+
   histograms_.create("difference_Beamspot",
       "Energy Difference (Reco - Estimate (GeV)", 100,-10,10);
   histograms_.create("energy_diff_vs_chi2_Beamspot",
@@ -139,8 +158,21 @@ void SkimZoneTrackAnalyzer::onProcessStart () {
    "Total Ecal Energy", 100, 0, 10);
  histograms_.create("ecal_energy", 
     "Total ECal Hit Energy (GeV)", 100, 0, 10);
+histograms_.create("ecal_energy_zone_1",
+    "Total ECal Hit Energy - Zone 1 (GeV)", 100, 0, 10);
+histograms_.create("ecal_energy_zone_2",
+    "Total ECal Hit Energy - Zone 2 (GeV)", 100, 0, 10);
+histograms_.create("ecal_energy_zone_3",
+    "Total ECal Hit Energy - Zone 3 (GeV)", 100, 0, 10);
+histograms_.create("ecal_energy_zone_4",
+    "Total ECal Hit Energy - Zone 4 (GeV)", 100, 0, 10);
+histograms_.create("ecal_energy_zone_5",
+    "Total ECal Hit Energy - Zone 5 (GeV)", 100, 0, 10);
+histograms_.create("max_pe", "Max PE(HCal)", 100,0,10);
 
 }
+
+
 
 void SkimZoneTrackAnalyzer::analyze(const framework::Event& event) {
   // looking at EcalRecHits
@@ -154,6 +186,19 @@ void SkimZoneTrackAnalyzer::analyze(const framework::Event& event) {
    
    histograms_.fill("ecal_energy", total_ecal_energy);
  
+//Looking at HcalRecHits
+const auto& hcal_hits{event.getCollection<ldmx::HcalHit>("HcalRecHits","")};
+auto max_pe = 0;
+for (const auto& hit: hcal_hits){
+  auto pe = hit.getPE();
+  if (pe > max_pe) {
+    max_pe = pe;
+  }
+}
+
+histograms_.fill("max_pe", max_pe);
+
+
 
  //back to tracking
  //
@@ -325,7 +370,39 @@ void SkimZoneTrackAnalyzer::analyze(const framework::Event& event) {
             histograms_.fill("energy_diff_vs_chi2_Beamspot", chi2, difference);
             histograms_.fill("energy_estimate_vs_ecal_energy",energy_estimate, total_ecal_energy);
             histograms_.fill("leadtrk_reco_all_reqs_vs_ecal_energy", total_ecal_energy, leadtrk_momentum);
-            } // exit inBamspot loop
+          if ((leadtrk_momentum > 6) && (total_ecal_energy < 3)) {
+            danger_count ++;
+          }
+
+          if (leadtrk_momentum > 1.25*(energy_estimate)) {
+              if (energy_estimate < 5){
+                zone1_total ++;
+                histograms_.fill("leadtrk_reco_all_reqs_vs_ecal_energy_zone_1", total_ecal_energy, leadtrk_momentum);
+                histograms_.fill("ecal_energy_zone_1", total_ecal_energy);
+
+              } else if (energy_estimate< 6) {
+                  zone2_total ++;
+                   histograms_.fill("leadtrk_reco_all_reqs_vs_ecal_energy_zone_2", total_ecal_energy, leadtrk_momentum);
+                histograms_.fill("ecal_energy_zone_2", total_ecal_energy);
+
+              } else if (energy_estimate < 7){
+                zone3_total ++;
+                 histograms_.fill("leadtrk_reco_all_reqs_vs_ecal_energy_zone_3", total_ecal_energy, leadtrk_momentum);
+                histograms_.fill("ecal_energy_zone_3", total_ecal_energy);
+
+              } else {
+                zone4_total ++;
+                 histograms_.fill("leadtrk_reco_all_reqs_vs_ecal_energy_zone_4", total_ecal_energy, leadtrk_momentum);
+                histograms_.fill("ecal_energy_zone_4", total_ecal_energy);
+
+              }
+             } else {
+               zone5_total ++;
+                histograms_.fill("leadtrk_reco_all_reqs_vs_ecal_energy_zone_5", total_ecal_energy, leadtrk_momentum);
+                histograms_.fill("ecal_energy_zone_5", total_ecal_energy);
+
+             } // ends zoning
+          } // exit inBamspot loop
           }//exit charge requirement
         }//exit hit requirement
       }//exit lead track at ECal loop
