@@ -372,6 +372,9 @@ histograms_.fill("max_pe", max_pe);
             histograms_.fill("leadtrk_reco_all_reqs_vs_ecal_energy", total_ecal_energy, leadtrk_momentum);
           if ((leadtrk_momentum > 6) && (total_ecal_energy < 3)) {
             danger_count ++;
+          histograms_.fill("leadtrk_reco_all_reqs_vs_ecal_energy_zone_1", total_ecal_energy, leadtrk_momentum);
+                histograms_.fill("ecal_energy_zone_1", total_ecal_energy);
+
           }
 
           if (leadtrk_momentum > 1.25*(energy_estimate)) {
