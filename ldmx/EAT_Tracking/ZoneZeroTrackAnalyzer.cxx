@@ -58,13 +58,13 @@ class ZoneZeroTrackAnalyzer : public framework::Analyzer {
   void analyze(const framework::Event& event) final;
   void onProcessEnd() final {
    // std::cout << "ID list (run, event #) = " << IDs << std::endl;
-    std::cout << "hits with no leading electron = " << no_leading_electron_count << std::endl;
-    std::cout << "total danger count = " << zone0_count << std::endl;
-    std::cout << "zone 1 count = "<< zone1_count <<std::endl;
-    std::cout << "zone 2 count = "<< zone2_count << std::endl;
-    std::cout << "zone 3 count = "<< zone3_count << std::endl;
-    std::cout << "zone 4 count = "<< zone4_count <<  std::endl;
-    std::cout << "zone 5 count = " << zone5_count <<  std::endl;
+    //std::cout << "hits with no leading electron = " << no_leading_electron_count << std::endl;
+    std::cout << "total zone 0 count = " << zone0_count << std::endl;
+   // std::cout << "zone 1 count = "<< zone1_count <<std::endl;
+   // std::cout << "zone 2 count = "<< zone2_count << std::endl;
+   // std::cout << "zone 3 count = "<< zone3_count << std::endl;
+   // std::cout << "zone 4 count = "<< zone4_count <<  std::endl;
+   // std::cout << "zone 5 count = " << zone5_count <<  std::endl;
     //std::cout << "total energy estimate too big count = " << estimate_too_big_count << std::endl;
     std::cout << "Total Lead Tracks, negatively charged, within beamspot and with 10 hits = " << GoodTracks<< std::endl;
   }
@@ -95,6 +95,11 @@ void ZoneZeroTrackAnalyzer::onProcessStart () {
   histograms_.create("leadtrk_reco_all_reqs_vs_ecal_energy",
       "Total Ecal Energy (GeV)", 100, 0,10,
       "Lead Track Reco Momentum (GeV)", 100, 0, 10);
+histograms_.create("leadtrk_reco_all_reqs_vs_ecal_energy_PE_cuts",
+      "Total Ecal Energy (GeV)", 100, 0,10,
+      "Lead Track Reco Momentum (GeV)", 100, 0, 10);
+
+
   histograms_.create("leadtrk_reco_all_reqs_vs_ecal_energy_zone_0", 
       "Total Ecal Energy (GeV)", 100, 0,10,
       "Lead Track Reco Momentum (GeV)", 100, 0, 10);
@@ -125,14 +130,14 @@ void ZoneZeroTrackAnalyzer::onProcessStart () {
       "Total ECal Hit Energy (GeV) - Scrappy", 100, 0, 10);
 
 
-  histograms_.create("max_pe", "Max PE(HCal)", 100,0,10);
+  histograms_.create("max_pe", "Max PE(HCal)", 100,0,100);
 
-  histograms_.create("max_pe_event_1_Fred", "Max PE(HCal)", 100, 0, 10);
-  histograms_.create("max_pe_event_2_Daphne", "Max PE(HCal)", 100, 0, 10);
-  histograms_.create("max_pe_event_3_Velma", "Max PE(HCal)", 100, 0, 10);
-  histograms_.create("max_pe_event_4_Shaggy", "Max PE(HCal)", 100, 0, 10);
-  histograms_.create("max_pe_event_5_Scooby", "Max PE(HCal)", 100, 0, 10);
-  histograms_.create("max_pe_event_6_Scrappy", "Max PE(HCal)", 100, 0, 10);
+  histograms_.create("max_pe_event_1_Fred", "Max PE(HCal)", 100, 0, 100);
+  histograms_.create("max_pe_event_2_Daphne", "Max PE(HCal)", 100, 0, 100);
+  histograms_.create("max_pe_event_3_Velma", "Max PE(HCal)", 100, 0, 100);
+  histograms_.create("max_pe_event_4_Shaggy", "Max PE(HCal)", 100, 0, 100);
+  histograms_.create("max_pe_event_5_Scooby", "Max PE(HCal)", 100, 0, 100);
+  histograms_.create("max_pe_event_6_Scrappy", "Max PE(HCal)", 100, 0, 100);
 
 
 }
@@ -160,8 +165,46 @@ void ZoneZeroTrackAnalyzer::analyze(const framework::Event& event) {
       max_pe = pe;
     }
   }
-
   histograms_.fill("max_pe", max_pe);
+int run = event.getEventHeader().getRun();
+int event_number = event.getEventNumber();
+
+//Scrappy first 
+if ((run == 189) && (event_number == 285891)){
+  histograms_.fill("max_pe_event_6_Scrappy", max_pe);
+  histograms_.fill("ecal_energy_event_6", total_ecal_energy);
+}
+
+if ((run == 127) && (event_number == 246844)){
+  histograms_.fill("max_pe_event_5_Scooby", max_pe);
+  histograms_.fill("ecal_energy_event_5", total_ecal_energy);
+}
+
+if ((run == 170) && (event_number == 899016)){
+  histograms_.fill("max_pe_event_4_Shaggy", max_pe);
+  histograms_.fill("ecal_energy_event_4", total_ecal_energy);
+}
+
+if ((run == 109) && (event_number == 273180)){
+  histograms_.fill("max_pe_event_3_Velma", max_pe);
+  histograms_.fill("ecal_energy_event_3", total_ecal_energy);
+}
+
+if ((run == 134) && (event_number == 452830)){
+  histograms_.fill("max_pe_event_2_Daphne", max_pe);
+  histograms_.fill("ecal_energy_event_2", total_ecal_energy);
+}
+
+if ((run == 143) && (event_number == 903000)){
+  histograms_.fill("max_pe_event_1_Fred", max_pe);
+  histograms_.fill("ecal_energy_event_1", total_ecal_energy);
+}
+
+
+
+
+
+
 
 
 
@@ -313,6 +356,9 @@ void ZoneZeroTrackAnalyzer::analyze(const framework::Event& event) {
         histograms_.fill("leadtrk_reco_all_reqs_vs_Energy_Estimate_Beamspot", energy_estimate, leadtrk_momentum);
         histograms_.fill("energy_estimate_vs_ecal_energy",energy_estimate, total_ecal_energy);
         histograms_.fill("leadtrk_reco_all_reqs_vs_ecal_energy", total_ecal_energy, leadtrk_momentum);
+        if (max_pe < 10) {
+          histograms_.fill("leadtrk_reco_all_reqs_vs_ecal_energy_PE_cuts", total_ecal_energy, leadtrk_momentum);
+        }
         if ((leadtrk_momentum > 6) && (total_ecal_energy < 3)) {
           zone0_count ++;
           histograms_.fill("leadtrk_reco_all_reqs_vs_ecal_energy_zone_0", total_ecal_energy, leadtrk_momentum);
