@@ -207,14 +207,14 @@ void ZoneZeroTrackAnalyzer::analyze(const framework::Event& event) {
 
   }
 
-  if ((run == 109) && (event_number == 273180)){
+  if ((run == 134) && (event_number == 452830)){
     histograms_.fill("max_pe_event_3_Velma", max_pe);
     histograms_.fill("ecal_energy_event_3", total_ecal_energy);
     histograms_.fill("max_pe_vs_total_ecal_energy_event_3_Velma", total_ecal_energy, max_pe);
 
   }
 
-  if ((run == 134) && (event_number == 452830)){
+  if ((run == 109) && (event_number == 273180 )){
     histograms_.fill("max_pe_event_2_Daphne", max_pe);
     histograms_.fill("ecal_energy_event_2", total_ecal_energy);
     histograms_.fill("max_pe_vs_total_ecal_energy_event_2_Daphne", total_ecal_energy, max_pe);
@@ -408,7 +408,7 @@ void ZoneZeroTrackAnalyzer::analyze(const framework::Event& event) {
           auto particle_pdg = particle.getPdgID() ;
           auto particle_energy = particle.getEnergy()/1000;
           auto particle_daughters = particle.getDaughters();
-          if (particle_energy < 50) {
+          if (particle_energy > 50) {
             std::cout << track_id << " -> PDG = " << particle_pdg
               << " Generated at = ("
               << particle.getVertex()[0] << ", "
