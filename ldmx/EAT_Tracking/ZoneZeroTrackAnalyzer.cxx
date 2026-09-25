@@ -408,7 +408,7 @@ void ZoneZeroTrackAnalyzer::analyze(const framework::Event& event) {
           auto particle_pdg = particle.getPdgID() ;
           auto particle_energy = particle.getEnergy()/1000;
           auto particle_daughters = particle.getDaughters();
-          if (particle_energy > 50) {
+          if (particle_energy > (50/1000)) {
             std::cout << track_id << " -> PDG = " << particle_pdg
               << " Generated at = ("
               << particle.getVertex()[0] << ", "
