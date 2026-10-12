@@ -112,22 +112,22 @@ void ZoneZeroTrackAnalyzer::onProcessStart () {
       "Energy Estimate", 100, 0, 10,
       "Total Ecal Energy", 100, 0, 10);
   histograms_.create("ecal_energy", 
-      "Total ECal Hit Energy (GeV)", 100, 0, 10);
+      "Total ECal Energy (GeV)", 100, 0, 10);
   histograms_.create("ecal_energy_zone_0",
-      "Total ECal Hit Energy - Zone 0 (GeV)", 100, 0, 10);
+      "Total ECal Energy - Zone 0 (GeV)", 100, 0, 10);
 
   histograms_.create("ecal_energy_event_1",
-      "Total ECal Hit Energy (GeV) - Fred", 100, 0, 10);
+      "Total ECal Energy (GeV) - Fred", 100, 0, 10);
   histograms_.create("ecal_energy_event_2",
-      "Total ECal Hit Energy (GeV) - Daphne", 100, 0, 10);
+      "Total ECal Energy (GeV) - Daphne", 100, 0, 10);
   histograms_.create("ecal_energy_event_3",
-      "Total ECal Hit Energy (GeV) - Velma", 100, 0, 10);
+      "Total ECal Energy (GeV) - Velma", 100, 0, 10);
   histograms_.create("ecal_energy_event_4",
-      "Total ECal Hit Energy (GeV) - Shaggy", 100, 0, 10);
+      "Total ECal Energy (GeV) - Shaggy", 100, 0, 10);
   histograms_.create("ecal_energy_event_5",
-      "Total ECal Hit Energy (GeV) - Scooby", 100, 0, 10);
+      "Total ECal Energy (GeV) - Scooby", 100, 0, 10);
   histograms_.create("ecal_energy_event_6",
-      "Total ECal Hit Energy (GeV) - Scrappy", 100, 0, 10);
+      "Total ECal Energy (GeV) - Scrappy", 100, 0, 10);
 
 
   histograms_.create("max_pe", "Max PE(HCal)", 100,0,100);
@@ -139,24 +139,24 @@ void ZoneZeroTrackAnalyzer::onProcessStart () {
   histograms_.create("max_pe_event_5_Scooby", "Max PE(HCal)", 100, 0, 100);
   histograms_.create("max_pe_event_6_Scrappy", "Max PE(HCal)", 100, 0, 100);
 
-histograms_.create("max_pe_vs_total_ecal_energy_event_1_Fred",
-    "Total Ecal Energy (GeV)", 100,0,10,
-    "Max PE(HCal)", 100,0,100);
-histograms_.create("max_pe_vs_total_ecal_energy_event_2_Daphne",
-    "Total Ecal Energy (GeV)", 100,0,10,
-    "Max PE(HCal)", 100,0,100);
-histograms_.create("max_pe_vs_total_ecal_energy_event_3_Velma",
-    "Total Ecal Energy (GeV)", 100,0,10,
-    "Max PE(HCal)", 100,0,100);
-histograms_.create("max_pe_vs_total_ecal_energy_event_4_Shaggy",
-    "Total Ecal Energy (GeV)", 100,0,10,
-    "Max PE(HCal)", 100,0,100);
-histograms_.create("max_pe_vs_total_ecal_energy_event_5_Scooby",
-    "Total Ecal Energy (GeV)", 100,0,10,
-    "Max PE(HCal)", 100,0,100);
-histograms_.create("max_pe_vs_total_ecal_energy_event_6_Scrappy",
-    "Total Ecal Energy (GeV)", 100,0,10,
-    "Max PE(HCal)", 100,0,100);
+  histograms_.create("max_pe_vs_total_ecal_energy_event_1_Fred",
+      "Total Ecal Energy (GeV)", 100,0,10,
+      "Max PE(HCal)", 100,0,100);
+  histograms_.create("max_pe_vs_total_ecal_energy_event_2_Daphne",
+      "Total Ecal Energy (GeV)", 100,0,10,
+      "Max PE(HCal)", 100,0,100);
+  histograms_.create("max_pe_vs_total_ecal_energy_event_3_Velma",
+      "Total Ecal Energy (GeV)", 100,0,10,
+      "Max PE(HCal)", 100,0,100);
+  histograms_.create("max_pe_vs_total_ecal_energy_event_4_Shaggy",
+      "Total Ecal Energy (GeV)", 100,0,10,
+      "Max PE(HCal)", 100,0,100);
+  histograms_.create("max_pe_vs_total_ecal_energy_event_5_Scooby",
+      "Total Ecal Energy (GeV)", 100,0,10,
+      "Max PE(HCal)", 100,0,100);
+  histograms_.create("max_pe_vs_total_ecal_energy_event_6_Scrappy",
+      "Total Ecal Energy (GeV)", 100,0,10,
+      "Max PE(HCal)", 100,0,100);
 }
 
 
@@ -404,27 +404,33 @@ void ZoneZeroTrackAnalyzer::analyze(const framework::Event& event) {
         std::cout << "Run No. " << run << " Event No. " << event_number << std::endl;
         std::cout << "Lead Track Reco Momentum = " << leadtrk_momentum << " GeV" << std::endl;
         std::cout << "Ecal Energy = " << total_ecal_energy << " GeV" << std::endl;
-        for (const auto& [track_id, particle]: event.getMap<int, ldmx::SimParticle>("SimParticles", "simtrack")) {
-          auto particle_pdg = particle.getPdgID() ;
-          auto particle_energy = particle.getEnergy()/1000;
-          auto particle_daughters = particle.getDaughters();
-          if (particle_energy > (50/1000)) {
-            std::cout << track_id << " -> PDG = " << particle_pdg
-              << " Generated at = ("
-              << particle.getVertex()[0] << ", "
-              << particle.getVertex()[1] << ", "
-              << particle.getVertex()[2] << ") with momentum = ("
-              << particle.getMomentum()[0] << ", "
-              << particle.getMomentum()[1] << ", "
-              << particle.getMomentum()[2] << ") GeV and energy = " << particle.getEnergy()/1000 << " GeV" << std::endl;
-            std::cout << "Daughters Track IDs: ";
-for (const int id : particle_daughters) {
-    std::cout << id << ", ";
-}
-std::cout << std::endl;
+        printf("CalSim Primaries:\n");
+        const auto& simcal_particles{event.getMap<int, ldmx::SimParticle>("SimParticles", "simcal")};
+        double total_primary_energy{0};
+        for (const auto& [tid, particle] : simcal_particles) {
+          if (particle.getGenStatus() != 1) continue;
+          const auto& p = particle.getMomentum();
+          const auto& E = particle.getEnergy()/1000;
+          const auto& pdg_id = particle.getPdgID();
+          if (E > 0.0005) {
+            printf("%d (PDG_ID = %d, Energy =  %f GeV, with Momentum = [%f, %f, %f] MeV)\n",
+                tid, pdg_id, E,
+                p[0], p[1], p[2]);
+          }
+        }
+        std::cout<< "SimTrack Particle Vertices: " <<std::endl;         
+        for (const auto& [track_id, track_particle]: event.getMap<int, ldmx::SimParticle>("SimParticles", "simtrack")) {
+          auto particle_pdg = track_particle.getPdgID() ;
+          auto particle_energy = track_particle.getEnergy()/1000;
+          if  (particle_energy > 0.0006) {
+            std::cout << track_id << " -> PDG = " << particle_pdg << " with energy = " << particle_energy << " GeV" << " Generated at = ("
+              << track_particle.getVertex()[0] << ", "
+              << track_particle.getVertex()[1] << ", "
+              << track_particle.getVertex()[2] << ")" << std::endl;
           }
         }
       }
+
     }//exit lead track at ECal loop
   }// close sorted tracks 
 
