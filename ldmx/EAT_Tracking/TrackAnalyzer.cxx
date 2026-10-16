@@ -318,12 +318,11 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
             std::uniform_real_distribution<> dis(0.0, 1.0);
             auto rando = dis(gen);
             //std::cout << "Lead Track Reco = " << leadtrk_momentum << ", Energy Estimate = " << energy_estimate << " , random chance = " << rando << '\n';
-
-            if (leadtrk_momentum > 1.25*(energy_estimate)) {
-              if ((energy_estimate < 3000) && (leadtrk_momentum > 6000)) {
-                recordSkimZone(danger_count_, energy_estimate, leadtrk_momentum);
+ if ((energy_estimate < 3000) && (leadtrk_momentum > 6000)) {
+                danger_count_ ++;
               }
 
+            if (leadtrk_momentum > 1.25*(energy_estimate)) {
               if (energy_estimate < 5000){
                 zone1_total ++;
                 recordSkimZone(zone1_count,energy_estimate, leadtrk_momentum);
