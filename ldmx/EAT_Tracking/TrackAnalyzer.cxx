@@ -16,9 +16,7 @@ M mag(const std::vector<M>& v) {
   }
   return std::sqrt(mag2);
 }
-std::tuple<double,double> getImpactPoint(const ldmx::Track::TrackState &state) {
-  return std::make_tuple(state.params[0], state.params[1]);
-}
+
 
 std::vector<const ldmx::Track*> sortByMomentum(const std::vector<ldmx::Track>& tracks) {
   std::vector<const ldmx::Track*> sorted_tracks;
@@ -28,7 +26,10 @@ std::vector<const ldmx::Track*> sortByMomentum(const std::vector<ldmx::Track>& t
       sorted_tracks.begin(),
       sorted_tracks.end(),
       [](const ldmx::Track* lhs, const ldmx::Track* rhs) {
-      return mag(lhs->getMomentum()) > mag(rhs->getMomentum());
+       
+       // auto lhs_track_state = lhs->getTrackState(ldmx::TrackStateType::AtECAL);
+      // auto  rhs_track_state = rhs->getTrackState(ldmx::TrackStateType::AtECAL);
+      return mag(lhs->getMomentum(ldmx::TrackStateType::AtECAL)) > mag(rhs->getMomentum(ldmx::TrackStateType::AtECAL));
       }
       );
   return sorted_tracks;
@@ -36,7 +37,7 @@ std::vector<const ldmx::Track*> sortByMomentum(const std::vector<ldmx::Track>& t
 
 class TrackAnalyzer : public framework::Analyzer {
   int no_leading_electron_count = 0;
-  //int danger_count_ = 0;
+  int danger_count_ = 0;
   //int estimate_too_big_count = 0;
   int zone1_count = 0;
   int zone1_total =0;
@@ -45,9 +46,9 @@ class TrackAnalyzer : public framework::Analyzer {
   int zone3_count = 0;
   int zone3_total = 0;
   int zone4_count = 0;
-  int zone4_total =0;
+  int zone4_total = 0;
   int zone5_count = 0;
-  int zone5_total =0;
+  int zone5_total = 0;
   int skimzone_count = 0;
   int TrackNumber = 0;
   int GoodTracks = 0;
@@ -60,12 +61,12 @@ class TrackAnalyzer : public framework::Analyzer {
   void recordSkimZone(int& zone_count,double energy_estimate,double leadtrk_momentum) {
     zone_count ++;
     skimzone_count ++;
-    setStorageHint(framework::hint_shouldKeep);
+    setStorageHint(framework::HINT_SHOULD_KEEP);
     histograms_.fill("skim_zone_leadtrk_reco_all_reqs_vs_energy_estimate_beamspot", energy_estimate,leadtrk_momentum);
   }
   void onProcessEnd() final {
     std::cout << "hits with no leading electron = " << no_leading_electron_count << std::endl;
-    //std::cout << "total danger count = " << danger_count_ << std::endl;
+    std::cout << "total danger (zone 0) count = " << danger_count_ << std::endl;
   std::cout << "zone 1 count = "<< zone1_count << " out of "<< zone1_total <<" events"<<std::endl;
     std::cout << "zone 2 count = "<< zone2_count << " out of "<< zone2_total <<" events" << std::endl;
     std::cout << "zone 3 count = "<< zone3_count << " out of "<< zone3_total <<" events" << std::endl;
@@ -102,12 +103,10 @@ void TrackAnalyzer::onProcessStart () {
   histograms_.create("esph_momentum",
       "Hit Momentum at ECal (GeV)", 100, 0, 10);
 
-
   histograms_.create("reco_leadtrk_momentum",
       "Lead Track Reco Momentum (GeV)",100,0,10);
   histograms_.create("reco_leadtrk_momentum_all_reqs",
       "Lead Track Reco Momentum (GeV) within Beamspot", 100, 0, 10);
-
 
   histograms_.create("leadtrk_reco_vs_sim_momentum",
       "Primary Electron Sim Momentum (GeV)", 100, 0, 10,
@@ -115,8 +114,6 @@ void TrackAnalyzer::onProcessStart () {
   histograms_.create("leadtrk_reco_vs_esph_momentum",
       "Hit Momentum at ECal (GeV)", 100, 0, 10,
       "Lead Track Reco Momentum (GeV)", 100,0, 10);
-
-
 
   histograms_.create("leadtrk_reco_vs_lead_electron_energy",
       "Primary Electron Energy (GeV)",100,0,10,
@@ -192,26 +189,23 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
     //what is the leading particle??
     return;
   }
-  auto leading_electron_energy = (leading_electron->getEnergy())/1000;
-
-
+  auto leading_electron_energy = (leading_electron->getEnergy())/1000; //convert everything to GEV
 
   // Now creating the Tracks collection - this is where I have Reco and Sim Momentum - i should be out of everything except the analyse call
   const auto& tracks{event.getCollection<ldmx::Track>("RecoilTracksClean", "")};
-
+ 
   for (const auto& trk: tracks) {
     auto track_at_ecal{trk.getTrackState(ldmx::TrackStateType::AtECAL)};
     if (not track_at_ecal) {
       continue;
     }
-    auto [x,y] = getImpactPoint(track_at_ecal.value());
-    histograms_.fill("impact_point", x, y);
-  }
-  for (const auto& trk: tracks) {
-    auto M_mag = mag(trk.getMomentum());
-    histograms_.fill("reco_momentum", M_mag);
-  }
+    auto position = trk.getPosition(ldmx::TrackStateType::AtECAL); 
+    std::cout << "(" << position[0] << " ," << position[1] << ")";
+    histograms_.fill("impact_point", position[0], position[1]);
 
+    auto M_mag = mag(trk.getMomentum(ldmx::TrackStateType::AtECAL));
+    histograms_.fill("reco_momentum", M_mag);
+  
   //i want the leading track - the one with the highest momentum
 
   auto sorted_tracks{sortByMomentum(tracks)};
@@ -228,11 +222,12 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
     //only looking a those that actually show up at the ECAL
     if (leadtrk_at_ecal) {
       TrackNumber++;
+      //leadtrk track state
 
-      auto [x,y] = getImpactPoint(leadtrk_at_ecal.value());
-      histograms_.fill("leadtrk_impact_point", x, y);
+      auto pos = leadtrk.getPosition(ldmx::TrackStateType::AtECAL);
+      histograms_.fill("leadtrk_impact_point", pos[0], pos[1]);
 
-      auto leadtrk_momentum = mag(leadtrk.getMomentum());
+      auto leadtrk_momentum = mag(leadtrk.getMomentum(ldmx::TrackStateType::AtECAL));
       histograms_.fill("reco_leadtrk_momentum", leadtrk_momentum);
 
       for (const auto* hit: sorted_hits) {
@@ -246,8 +241,8 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
           auto hpy = hit_momentum[1];
           auto hpz = hit_momentum[2];
           const std::vector<double> ESPHp = {hpx,hpy,hpz};
-          auto ESPHp_mag = mag(ESPHp)/1000; //both reco and sim in GeV now
-          auto lead_electron_energy = (hit->getEnergy())/1000;
+          auto ESPHp_mag = mag(ESPHp); 
+          auto lead_electron_energy = (hit->getEnergy());
           histograms_.fill("esph_momentum",ESPHp_mag);
           histograms_.fill("leadtrk_reco_vs_esph_momentum",ESPHp_mag,leadtrk_momentum);
           histograms_.fill("leadtrk_reco_vs_lead_electron_energy",lead_electron_energy, leadtrk_momentum);
@@ -263,13 +258,13 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
       auto chi2  = leadtrk.getChi2();
       histograms_.fill("leadtrk_chi2", chi2);
 
-      bool inBeamspot = (x >= -11.5 && x <= 9) && (y >= -38.5 && y <= 38.5);
+      bool inBeamspot = (pos[0] >= -11.5 && pos[0] <= 9) && (pos[1] >= -38.5 && pos[1] <= 38.5);
       bool hasEnoughHits  = (nhits >= 10);
 
       if (hasEnoughHits) {
-        histograms_.fill("leadtrk_nhits_10_impact_point", x, y);
+        histograms_.fill("leadtrk_nhits_10_impact_point", pos[0], pos[1]);
         if (charge < 0) {
-          histograms_.fill("leadtrk_nhits_10_neg_charge_impact_point", x,y);
+          histograms_.fill("leadtrk_nhits_10_neg_charge_impact_point", pos[0],pos[1]);
           if  (inBeamspot) {
             histograms_.fill("reco_leadtrk_momentum_all_reqs", leadtrk_momentum);
             histograms_.fill("leadtrk_all_req_reduced_chi2", chi2/4);
@@ -296,21 +291,21 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
               auto leading_electron_pos = leading_electron->getPosition();
               // could filter for things here
               if ((hit->getPdgID() == 11) or (hit->getPdgID() == -11) or (hit->getPdgID() == 22)) {
-                const auto& pos = hit->getPosition();
+                const auto& hitpos = hit->getPosition();
 
                 bool inImpactRegion = (
-                    (pos[0] >= -20 && pos[0] <= 20) &&
-                    (pos[1] >= -50 && pos[1] <= 50)
+                    (hitpos[0] >= -20 && hitpos[0] <= 20) &&
+                    (hitpos[1] >= -50 && hitpos[1] <= 50)
                     ); // nearby energy is whatever energy is in this region
 
                 if (inImpactRegion and used_ids.find(hit->getTrackID())==used_ids.end()) {
                   used_ids.insert(hit->getTrackID());
-                  nearby_energy += (hit->getEnergy()/1000);
+                  nearby_energy += (hit->getEnergy());
                 }
               }
             } //close sorted hits & adding nearby energy
 
-            auto leading_electron_energy = (leading_electron->getEnergy())/1000;
+            auto leading_electron_energy = (leading_electron->getEnergy());
             auto energy_estimate = leading_electron_energy + nearby_energy ;
             auto difference = leadtrk_momentum - energy_estimate;
 
@@ -325,15 +320,19 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
             //std::cout << "Lead Track Reco = " << leadtrk_momentum << ", Energy Estimate = " << energy_estimate << " , random chance = " << rando << '\n';
 
             if (leadtrk_momentum > 1.25*(energy_estimate)) {
-              if (energy_estimate < 5){
+              if ((energy_estimate < 3000) && (leadtrk_momentum > 6000)) {
+                recordSkimZone(danger_count_, energy_estimate, leadtrk_momentum);
+              }
+
+              if (energy_estimate < 5000){
                 zone1_total ++;
                 recordSkimZone(zone1_count,energy_estimate, leadtrk_momentum);
-              } else if (energy_estimate< 6) {
+              } else if (energy_estimate< 6000) {
                   zone2_total ++;
                   if (rando < 0.5) {
                     recordSkimZone(zone2_count,energy_estimate,leadtrk_momentum);
                   }
-              } else if (energy_estimate < 7){
+              } else if (energy_estimate < 7000){
                 zone3_total ++;
                 if  (rando < 0.25) {
                   recordSkimZone(zone3_count,energy_estimate,leadtrk_momentum );
@@ -356,5 +355,5 @@ void TrackAnalyzer::analyze(const framework::Event& event) {
       }//exit lead track at ECal loop
     }// close sorted tracks 
   } //close analyser
-
+}
   DECLARE_ANALYZER(TrackAnalyzer);
